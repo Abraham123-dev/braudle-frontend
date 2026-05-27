@@ -23,7 +23,7 @@ export const FeatureGrid = () => (
           { icon: Target, title: "Practice & Exam Mode", desc: "Test yourself with tailored quizzes that adapt to your performance, simulating real exam conditions." },
           { icon: ShieldCheck, title: "Misconception Detection", desc: "Braudle uniquely identifies the root causes behind your mistakes, correcting core misunderstandings." }
         ].map((feat, i) => (
-          <div key={i} className="bg-white p-10 rounded-[40px] border border-gray-100 hover:shadow-lg transition-all h-full">
+          <div key={i} className="bg-white p-10 rounded-[40px] border border-gray-100 h-full">
             <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center mb-8">
               <feat.icon className="w-6 h-6 text-brand-green" />
             </div>

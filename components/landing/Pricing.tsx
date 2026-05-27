@@ -45,9 +45,9 @@ export const Pricing = () => {
           {plans.map((plan) => (
               <div 
                   key={plan.name}
-                  className={`p-8 lg:p-10 rounded-[32px] lg:rounded-[40px] border flex flex-col h-full transition-all ${
+                  className={`p-8 lg:p-10 rounded-[32px] lg:rounded-[40px] border flex flex-col h-full transition-colors ${
                       plan.highlight 
-                      ? "bg-brand-forest text-white border-brand-green shadow-xl lg:scale-105" 
+                      ? "bg-brand-forest text-white border-brand-green" 
                       : "bg-white text-gray-900 border-gray-100"
                   }`}
               >
@@ -55,29 +55,29 @@ export const Pricing = () => {
                       <h3 className="text-xl lg:text-2xl font-semibold mb-2">{plan.name}</h3>
                       <div className="flex items-baseline gap-1">
                           <span className="text-4xl lg:text-5xl font-semibold tracking-tight">{plan.price}</span>
-                          <span className={`text-xs lg:text-sm font-semibold ${plan.highlight ? "text-white/60" : "text-gray-400"}`}>/month</span>
+                          <span className={`text-[10px] font-medium uppercase tracking-wider ${plan.highlight ? "text-white/60" : "text-gray-400"}`}>/month</span>
                       </div>
-                      <p className={`mt-4 text-xs lg:text-sm font-normal ${plan.highlight ? "text-white/70" : "text-gray-500"}`}>
+                      <p className={`mt-4 text-[13px] font-normal leading-relaxed ${plan.highlight ? "text-white/70" : "text-gray-500"}`}>
                           {plan.description}
                       </p>
                   </div>
 
-                  <ul className="space-y-3 lg:space-y-4 mb-10 lg:mb-12 flex-1">
+                  <ul className="space-y-4 mb-10 lg:mb-12 flex-1">
                       {plan.features.map(feat => (
                           <li key={feat} className="flex items-start gap-3">
-                              <div className={`w-4 h-4 lg:w-5 lg:h-5 rounded-full flex items-center justify-center shrink-0 mt-1 ${plan.highlight ? "bg-brand-lime text-brand-green" : "bg-brand-green/10 text-brand-green"}`}>
-                                  <Check className="w-2.5 h-2.5 lg:w-3 lg:h-3" strokeWidth={3} />
+                              <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${plan.highlight ? "bg-brand-lime text-brand-green" : "bg-brand-green/10 text-brand-green"}`}>
+                                  <Check className="w-2.5 h-2.5" strokeWidth={2.5} />
                               </div>
-                              <span className={`text-xs lg:text-sm font-medium ${plan.highlight ? "text-white/90" : "text-gray-600"}`}>{feat}</span>
+                              <span className={`text-[13.5px] font-normal ${plan.highlight ? "text-white/90" : "text-gray-600"}`}>{feat}</span>
                           </li>
                       ))}
                   </ul>
 
                   <Link 
                       href="/login"
-                      className={`w-full py-4 rounded-xl font-semibold text-center transition-all ${
+                      className={`w-full py-4 rounded-xl font-medium text-[15px] text-center transition-colors ${
                           plan.highlight 
-                          ? "bg-brand-lime text-brand-green hover:opacity-90" 
+                          ? "bg-brand-lime text-brand-green hover:bg-brand-lime/90" 
                           : "bg-gray-900 text-white hover:bg-black"
                       }`}
                   >

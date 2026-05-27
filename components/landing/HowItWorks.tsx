@@ -56,17 +56,17 @@ export const HowItWorks = () => {
               className="space-y-6 relative"
             >
               <div className="relative">
-                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${step.color} shadow-sm border border-black/5`}>
+                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${step.color} border border-black/5`}>
                   <step.icon className="w-8 h-8" />
                 </div>
-                <div className="absolute -top-3 -right-3 w-8 h-8 bg-white border-2 border-gray-100 rounded-full flex items-center justify-center font-semibold text-gray-400 text-xs shadow-sm">
+                <div className="absolute -top-3 -right-3 w-8 h-8 bg-white border border-gray-100 rounded-full flex items-center justify-center font-medium text-gray-400 text-[10px]">
                   0{i + 1}
                 </div>
               </div>
               
               <div className="space-y-3">
-                <h3 className="text-xl font-semibold text-gray-900">{step.title}</h3>
-                <p className="text-gray-500 font-normal leading-relaxed text-sm">
+                <h3 className="text-lg font-semibold text-gray-900 leading-tight">{step.title}</h3>
+                <p className="text-gray-500 font-normal leading-relaxed text-[13.5px]">
                   {step.description}
                 </p>
               </div>

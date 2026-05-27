@@ -57,9 +57,10 @@ export const Footer = () => (
       <div className="md:col-span-2 space-y-6">
         <h4 className="font-semibold text-gray-400 text-xs uppercase tracking-widest">Support</h4>
         <ul className="space-y-4 text-[13px] text-gray-600 font-normal">
-          {["Help Center", "Community", "Privacy Policy", "Terms"].map(item => (
-            <li key={item} className="hover:text-brand-green cursor-pointer transition-colors">{item}</li>
-          ))}
+          <li className="hover:text-brand-green cursor-pointer transition-colors">Help Center</li>
+          <li className="hover:text-brand-green cursor-pointer transition-colors">Community</li>
+          <li><Link href="/privacy" className="hover:text-brand-green transition-colors">Privacy Policy</Link></li>
+          <li><Link href="/terms" className="hover:text-brand-green transition-colors">Terms</Link></li>
         </ul>
       </div>
 

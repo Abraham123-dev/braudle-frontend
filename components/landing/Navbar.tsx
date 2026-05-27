@@ -57,9 +57,8 @@ export const Navbar = () => {
       
       <div className="flex items-center gap-6">
         <div className="hidden md:flex items-center gap-6">
-          <Link href="/login" className="text-[13px] font-normal text-gray-500 hover:text-brand-green">Log in</Link>
-          <Link href="/login" className="px-5 py-2 bg-brand-green text-white text-[13px] font-medium rounded-full hover:bg-brand-forest transition-all flex items-center gap-2">
-            Try out now
+          <Link href="/login" className="px-5 py-2 bg-brand-green text-white text-[13px] font-medium rounded-full hover:bg-brand-forest transition-colors flex items-center gap-2">
+            Get Started Free
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="translate-y-[0.5px]">
               <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -129,8 +128,7 @@ export const Navbar = () => {
               className="mt-auto pb-12 flex flex-col gap-6"
             >
               <div className="h-[1px] w-full bg-white/10 mb-6" />
-              <Link href="/login" onClick={() => setIsOpen(false)} className="text-2xl font-semibold text-white/60 hover:text-brand-lime text-left transition-colors">Login</Link>
-              <Link href="/login" onClick={() => setIsOpen(false)} className="w-full py-5 bg-brand-lime text-brand-forest rounded-2xl text-xl font-semibold shadow-2xl text-center hover:scale-[1.02] active:scale-[0.98] transition-all">
+              <Link href="/login" onClick={() => setIsOpen(false)} className="w-full py-5 bg-brand-lime text-brand-forest rounded-2xl text-xl font-semibold text-center hover:opacity-90 active:opacity-100 transition-opacity">
                 Get Started Free
               </Link>
             </motion.div>
