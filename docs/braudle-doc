@@ -8,7 +8,7 @@ Author: Abraham (Jide)  |  May 2026
 
 WHAT IS BRAUDLE?	BRAUDLE is an AI-powered personal tutor web app that transforms uploaded study materials (PDFs, notes) into interactive, adaptive learning experiences. It teaches, questions, evaluates, and personalises lessons for every student — acting as a 24/7 private tutor.
 
-MVP SCOPE	User signup/login  |  PDF upload  |  AI Teach Mode  |  Quiz generation after lesson  |  Session summary with progress tracking
+MVP SCOPE	User signup/login  |  PDF upload (2/day)  |  Image notes upload (5/day)  |  AI Mode Selection  |  Quiz generation  |  Session summary with progress tracking
  
 📘  SECTION 1: PRODUCT OVERVIEW
 Vision, mission, users, and core modes
@@ -38,10 +38,10 @@ Mode	What It Does	MVP?
 Teach Mode	AI breaks content into sections, explains step-by-step, pauses to check understanding	YES
 Quiz Mode	Generates MCQ and theory questions from uploaded material with instant feedback	YES
 Session Summary	Shows what student understood well and what needs more work	YES
-Explain Like I'm...	Adapts explanation depth — Beginner / Intermediate / Advanced	Phase 2
-Break It Down	Isolates one confusing concept and simplifies it completely	Phase 2
-Voice Tutor	Student speaks, AI responds — fully voice-based tutoring session	Phase 2
-Collaborative Rooms	Group study with AI-assisted discussion on shared documents	Phase 3
+Explain Like I'm...	Adapts explanation depth — Beginner / Intermediate / Advanced	Phase 1
+Break It Down	Isolates one confusing concept and simplifies it completely	Phase 1
+Voice Tutor	Student speaks, AI responds — fully voice-based tutoring session	Phase 1
+Collaborative Rooms	Group study with AI-assisted discussion on shared documents	Phase 2
  
 🎯  SECTION 2: USER EXPERIENCE FLOW
 End-to-end student journey from signup to session summary
@@ -51,11 +51,11 @@ Step	What Happens	System Action
 1. Land on BRAUDLE	Student sees landing page with clear CTA	Serve Next.js landing page
 2. Sign In with Google	Click 'Continue with Google' — no form, no password	Google OAuth callback → match/create User + StudentProfile → issue JWT
 3. Dashboard	See uploaded docs, recent sessions, progress overview	Fetch user data from API
-4. Upload PDF	Drag and drop — max 2 uploads/day enforced, max 50MB per file. Large files processed in background queue.	Rate limit check → Multer upload → BullMQ queue → pdf-parse extract → Semantic chunk → Store in MongoDB
-5. Choose Mode	Select Teach Mode, Quiz Mode, or Break It Down	Load AI prompt config for chosen mode
-6. AI Teaches	BRAUDLE explains section by section, pauses to ask questions	Stream AI responses via Groq API
-7. Student Answers	Student types answers to mid-lesson questions	Send answer to AI for evaluation
-8. Quiz	After teaching, AI generates 5-10 quiz questions	POST /quiz/generate endpoint
+4. Upload Document	Drag and drop PDF (max 2/day) or Image (max 5/day). Max 50MB per file. Large files processed in background queue.	Rate limit check → Multer upload → BullMQ queue → Extraction (pdf-parse / Groq Vision) → Semantic chunk → Store in DB
+5. Choose Mode	Student selects intent: 'Teach Mode', 'Explain the concepts', 'I sabi am, give me quiz', 'Exam for it', or 'Others' (custom text)	Initialize session with specific system prompt for chosen mode
+6. AI Teaches/Interacts	BRAUDLE responds based on mode via SSE streaming for real-time interaction	Stream AI responses via Groq API (SSE)
+7. Student Answers	Student types answers or interacts with the prompt	Send answer to AI for evaluation
+8. Quiz/Evaluation	If in Quiz/Exam mode, system serves questions based on document content	POST /quiz/generate endpoint
 9. Submit Quiz	Student submits answers, gets instant feedback per question	Evaluate + update StudentProfile
 10. Session Summary	See score, strong topics, weak topics, next steps	Update learningHistory in DB
  
@@ -95,7 +95,7 @@ AI Tutor Service	Builds prompts, calls Groq API, streams responses back to stude
 Quiz Service	Generates questions from document chunks, accepts student answers, evaluates responses, returns feedback	Groq API, Quiz collection
 Adaptive Engine	Reads quiz results, updates StudentProfile weak/strong topics, adjusts future prompt context	StudentProfile collection
 Auth Service	Google OAuth via Passport.js — matches/creates users, issues JWT tokens, protects routes via middleware	passport-google-oauth20, jsonwebtoken
-Voice Service (P2)	Speech-to-text for student input, text-to-speech for AI responses	Whisper API, ElevenLabs
+Voice Service	Speech-to-text for student input, text-to-speech for AI responses	Whisper API, ElevenLabs
  
 🗄️  SECTION 4: DATABASE SCHEMA
 Full MongoDB collections, fields, types, and relationships
@@ -167,7 +167,7 @@ completedAt	Date	no	Session end timestamp — null if not yet complete
 durationMinutes	Number	no	Total time spent in session (calculated on completion)
 
 4.5 Conversation Collection
-Stores the full message history for each session. This is passed back to Claude with every new message to maintain context.
+Stores the full message history for each session. This is passed back to the ai with every new message to maintain context.
 
 Field	Type	Required	Description
 _id	ObjectId	YES	Auto-generated primary key
@@ -221,16 +221,16 @@ POST /api/auth/logout	Clear JWT cookie and invalidate session	Yes (JWT)
 
 5.2 Document Endpoints
 Method + Route	Purpose	Auth Required
-POST /api/documents/upload	Upload a PDF file — triggers ingestion pipeline	Yes
+POST /api/documents/upload	Upload PDF (2/day) or Image (5/day) — triggers ingestion pipeline	Yes
 GET  /api/documents	Get all documents for current user	Yes
 GET  /api/documents/:id	Get a single document with its chunks	Yes
 DELETE /api/documents/:id	Delete a document and all related sessions	Yes
 
 5.3 AI Tutor Endpoints
 Method + Route	Purpose	Auth Required
-POST /api/sessions/start	Start a new learning session — returns sessionId	Yes
-POST /api/sessions/:id/teach	Send next message in teach mode — streams AI response	Yes
-POST /api/sessions/:id/explain	Request deeper explanation of current chunk	Yes
+POST /api/sessions/start	Start a new session — returns sessionId. Expects 'mode' in body: ('teach', 'explain', 'quiz', 'exam', 'custom')	Yes
+POST /api/sessions/:id/chat	Send message/intent in current mode — streams AI response via SSE	Yes
+POST /api/sessions/:id/explain	Request deeper explanation of current concept	Yes
 POST /api/sessions/:id/breakdown	Break down a specific confusing concept	Yes
 GET  /api/sessions/:id	Get session details and current state	Yes
 GET  /api/sessions/:id/conversation	Get full conversation history for a session	Yes
@@ -254,15 +254,18 @@ How the AI tutor works — prompts, chunking, evaluation, and adaptation
 6.1 Overview — How BRAUDLE Teaches
 Every session follows this flow:
 
-PDF Uploaded  →  Text Extracted  →  Chunked into Sections
+Document Uploaded  →  Text Extracted (PDF/Image)  →  Chunked into Sections
 ↓
-System Prompt Built  (student level + topic + chunk)  →  Groq API Called
+Student Chooses Intent:
+[ Teach Mode ] | [ Explain Concepts ] | [ I sabi am, give me quiz ] | [ Exam for it ] | [ Others... ]
 ↓
-AI Explains Chunk  →  Asks a Check Question  →  Student Answers
+System Prompt Fixed Based on Choice  →  Groq API Called
 ↓
-AI Evaluates Answer  →  Corrects Misconceptions  →  Moves to Next Chunk
+AI Interacts via SSE Stream  →  Asks Questions if teaching  →  Student Answers
 ↓
-All Chunks Done  →  Quiz Generated  →  Score Calculated  →  Profile Updated
+AI Evaluates Answer  →  Corrects Misconceptions  →  Moves Forward
+↓
+Session Done  →  Summary Generated  →  Score Calculated  →  Profile Updated
 
 6.2 Document Chunking Strategy
 Chunking is the most critical pre-processing step. Poor chunking = poor teaching. BRAUDLE uses a semantic-aware chunking approach:
@@ -396,24 +399,23 @@ braudle-frontend/
 │   └── auth.ts                    # Auth helpers
 └── package.json
  
-⚡  SECTION 7B: GROQ AI ENGINE
-Model selection, SDK setup, streaming, and prompt configuration
+⚡  SECTION 7B: AI ENGINE ARCHITECTURE (Groq + Hugging Face)
+Model selection, SDK setup, and specialized task routing
 
-7B.1 Why Groq
-Factor	Groq	OpenAI GPT-4o
-Speed	Ultra-fast inference — feels like real-time conversation	Noticeably slower for streaming
-Cost	Significantly cheaper per token	More expensive
-Context window	128k tokens — fits full PDFs + history	128k tokens
-API format	OpenAI-compatible — easy SDK	OpenAI SDK
-Best for BRAUDLE	YES — fast streaming = natural tutor feel	Works but slower UX
+7B.1 Dual-Provider Strategy (Zero Cost)
+BRAUDLE uses a hybrid approach to maintain zero AI costs during Phase 1 by utilizing the free tiers of Groq and Hugging Face.
 
-7B.2 Model Configuration
-Setting	Value	Reason
-Model	llama-3.3-70b-versatile	Best Groq model for reasoning, teaching, and instruction-following
-Temperature	0.7	Balanced — creative enough to explain well, accurate enough to not hallucinate facts
-Max tokens	1024 per response	Enough for a full explanation without being overwhelming to the student
-Stream	true	Always stream — makes the tutor feel alive and responsive
-Top_p	0.9	Nucleus sampling — keeps responses focused and coherent
+Provider	Models Used	Primary Role
+Groq	Llama 3.3 70B, 3.1 8B, 3.2 Vision	High-speed reasoning, teaching, and OCR
+Hugging Face	MiniLM-L6, Flan-T5	Zero-LLM cost classification and semantic matching
+
+7B.2 Model Job Routing
+Model	Job Description	Reason
+llama-3.3-70b-versatile	Primary Teaching Engine	Deep reasoning needed for adaptive tutoring
+llama-3.1-8b-instant	Fast Flags & Simple Checks	Low latency for casual interactions
+llama-3.2-11b-vision	Handwriting/Image Transcription	Vision-capable for student note uploads
+all-MiniLM-L6-v2 (HF)	Semantic Similarity Scoring	Evaluates short answers against correct ones without LLM calls
+flan-t5-large (HF)	Fast Answer Classification	Efficiently categorizes responses as 'Correct', 'Partial', etc.
 
 7B.3 SDK Setup (ai.service.ts)
 
@@ -487,9 +489,8 @@ mongo	mongo:7	Local MongoDB (dev only — use Atlas in prod)
 Phase-by-phase feature delivery plan
 
 Phase	Features	Goal
-Phase 1 — MVP	User auth (signup/login)  |  PDF upload + text extraction  |  Teach Mode  |  Quiz generation + submission  |  Session summary  |  Basic student profile	First working product students can use immediately
-Phase 2 — Intelligence	Adaptive learning engine  |  Explain Like I'm... modes  |  Break It Down mode  |  Voice tutor (speech input/output)  |  Misconception detection improvements  |  Progress dashboard	BRAUDLE starts feeling like a real tutor that knows you
-Phase 3 — Scale & Collaborate	Collaborative study rooms  |  Image/audio upload support  |  Admin / teacher dashboard  |  Foundation/school multi-user management  |  Mobile-responsive polish	BRAUDLE becomes a platform, not just an app
+Phase 1 — MVP & Intelligence	User auth (signup/login)  |  PDF upload + text extraction  |  Teach Mode  |  Quiz generation + submission  |  Session summary  |  Basic student profile  |  Adaptive learning engine  |  Explain Like I'm... modes  |  Break It Down mode  |  Voice tutor  |  Misconception detection  |  Progress dashboard	Build a primary working product that actually knows the student and adapts.
+Phase 2 — Scale & Collaborate	Collaborative study rooms  |  /audio upload support  |  Admin / teacher dashboard  |  Foundation/school multi-user management  |  Mobile-responsive polish	BRAUDLE becomes a platform, not just an app. Multi-user and classroom support.
  
 🤖  SECTION 10: INSTRUCTIONS FOR AI AGENTS
 How AI coding agents should interpret and work on this codebase
@@ -508,18 +509,19 @@ BRAUDLE is an AI-powered personal tutor web app. It is NOT a summariser, flashca
 •	Use async/await throughout — no .then() chains
 •	All errors must be passed to next(error) for the global error handler to catch
 
-10.3 How Teach Mode Works (For Agents)
-When an agent is implementing or extending Teach Mode, follow this exact logic:
+10.3 How Sessions Work (For Agents)
+When an agent is implementing or extending a learning session, follow this logic:
 
-•	1. Session starts — load document chunks from DB
-•	2. currentChunkIndex starts at 0
-•	3. Build prompt using promptBuilder.ts with: role definition + student level + current chunk + conversation history
-•	4. Call Groq API and stream response to frontend
+•	1. Post-Upload: System prompts user for intent ('Teach Mode', 'Explain concepts', 'I sabi am, give me quiz', 'Exam', or 'Others')
+•	2. Session starts — load document chunks from DB and initialize based on chosen mode
+•	3. Build prompt using promptBuilder.ts with: role definition + student level + mode-specific instructions + document context
+•	4. Call Groq API and stream response to frontend via SSE
 •	5. Save AI response to Conversation.messages[]
-•	6. Wait for student reply
-•	7. Evaluate reply — if wrong, correct and repeat chunk; if right, increment currentChunkIndex
-•	8. Repeat until all chunks complete
-•	9. Trigger quiz generation automatically
+•	6. Handle student input differently per mode:
+     - Teach Mode: Break it down, check understanding, move to next chunk
+     - Explain Concepts: Holistic view, simplified analogies
+     - Quiz/Exam: Evaluate immediately, update profile, do not re-explain unless asked
+•	7. All interaction must be streamed via SSE for a word-by-word real-time experience
 
 10.4 Key Files Agents Should Know
 File	What It Does
@@ -529,52 +531,59 @@ src/utils/promptBuilder.ts	Assembles the 5-layer system prompt for each AI call.
 src/services/profile.service.ts	Updates StudentProfile after every quiz. Contains scoring thresholds and level-up logic.
 src/middleware/auth.middleware.ts	JWT validation. Attaches req.user to every protected request.
 
-📄  SECTION 11: PDF UPLOAD SYSTEM & RATE LIMITING
-Large file handling, background queues, and 2 uploads/day enforcement
+📄  SECTION 11: DOCUMENT UPLOAD SYSTEM & RATE LIMITING
+Large file handling, background queues, and daily enforcement
 
-11.1 Upload Rate Limiting — 2 Uploads Per User Per Day
-Every user is limited to 2 PDF uploads per day. This is enforced at the middleware level before any file is accepted.
+11.1 Upload Rate Limiting — PDF (2/day) & Images (5/day)
+Every user is limited by file type per day. This is enforced at the middleware level.
 
-Scenario	What Happens	HTTP Response
-Upload 1 today	Passes limit check — file accepted and queued	200 OK — processing started
-Upload 2 today	Passes limit check — file accepted and queued	200 OK — processing started
-Upload 3 today	Blocked immediately before file is touched	429 Too Many Requests — try again tomorrow
-New day (midnight reset)	Count resets — user gets 2 fresh uploads	200 OK
+Scenario	Limit	HTTP Response if Hit
+PDF Upload	2 per user per day	429 Too Many Requests
+Image Upload	5 per user per day	429 Too Many Requests
+File Size	Max 50MB per file	413 Payload Too Large
 
 11.2 Upload Limit Schema (MongoDB)
-Tracked in the User document directly — no separate collection needed for MVP:
+Tracked in the User document directly:
 
 // Added to User model
-uploadCount:     { type: Number, default: 0 },
-lastUploadDate:  { type: Date,   default: null },
+pdfUploadCount:   { type: Number, default: 0 },
+imgUploadCount:   { type: Number, default: 0 },
+lastUploadDate:   { type: Date,   default: null },
 
 // Middleware logic
 const today = new Date().toDateString();
 const isNewDay = user.lastUploadDate?.toDateString() !== today;
 
-if (isNewDay) { user.uploadCount = 0; }
-if (user.uploadCount >= 2) return res.status(429).json({ error: 'Daily upload limit reached' });
+if (isNewDay) { 
+  user.pdfUploadCount = 0; 
+  user.imgUploadCount = 0; 
+}
 
-user.uploadCount += 1;
-user.lastUploadDate = new Date();
-await user.save();
+// Logic then checks file type and increments specific counter
+// if (pdf) user.pdfUploadCount += 1;
+// if (img) user.imgUploadCount += 1;
 
-11.3 Large PDF Handling — Background Queue
-Large PDFs are never processed synchronously. The API responds immediately and a background worker handles the heavy lifting.
+11.3 Document Handling — Background Queue
+Large files are never processed synchronously. The API responds immediately and a background worker handles the heavy lifting.
 
 File Size	Processing Strategy	User Experience
 Under 5MB	Process inline — fast enough to not block	Ready in ~2 seconds
 5MB – 50MB	Queue immediately via BullMQ — background worker processes	Sees 'Processing...' spinner, notified when ready
 Over 50MB	Rejected at upload — file too large	Error message: 'Max file size is 50MB'
-Non-PDF	Rejected at Multer middleware	Error message: 'Only PDF files are accepted'
+Unsupported	Rejected at Multer middleware	Error message: 'Only PDF and Image files are accepted'
 
 11.4 Background Queue Flow (BullMQ + Redis)
 
-User uploads PDF → Rate limit passes → Multer saves file to S3
+User uploads file → Rate limit passes → Multer saves file to S3
 ↓
 Document created in MongoDB (status: 'pending') → Job added to BullMQ queue
 ↓  API immediately returns documentId to frontend
-Background Worker picks up job → pdf-parse extracts text
+Background Worker picks up job → Extraction (pdf-parse / Groq Vision)
+↓
+Semantic chunker splits text → Chunks stored in MongoDB
+↓
+Document status updated → 'ready' → Frontend prompts for session mode
+
 ↓
 Semantic chunker splits text → Chunks stored in MongoDB
 ↓
@@ -582,12 +591,13 @@ Document status updated → 'ready' → Frontend polls and unlocks study session
 
 11.5 File Size & Limit Summary
 Limit	Value	Enforced By
-Max uploads per user per day	2	Custom middleware — checks User.uploadCount
+PDF uploads per user per day	2	Custom middleware — checks User.pdfUploadCount
+Image uploads per user per day	5	Custom middleware — checks User.imgUploadCount
 Max file size per upload	50MB	Multer limits config
-Accepted file types	PDF only (MVP)	Multer fileFilter — rejects all others
-Max pages processed	300 pages	Worker checks page count after extraction
-Queue retry on failure	3 retries with backoff	BullMQ job options
- 
+Accepted file types	PDF, JPG, PNG	Multer fileFilter
+Max pages (PDF)	300 pages	Worker check
+Queue retry on failure	3 retries	BullMQ job options
+
 🔒  SECTION 12: SECURITY & SYSTEM HARDENING
 Rate limiting, injection protection, secrets management, horizontal scaling, and caching
 
@@ -658,8 +668,8 @@ Rotate GROQ_API_KEY and JWT_SECRET every 90 days	Limits exposure window if a key
 Endpoint Group	Limit	Window	Purpose
 All endpoints (global)	100 requests	15 minutes per IP	General DDoS/abuse protection
 POST /api/auth/google/callback	20 requests	15 minutes per IP	Prevent OAuth brute force
-POST /api/documents/upload	2 per user	24 hours (per userId)	Business rule — 2 uploads/day
-POST /api/sessions/teach	60 requests	1 minute per user	Prevent AI API cost abuse
+POST /api/documents/upload	Type-specific	24 hours (per userId)	2 PDF / 5 Image per day
+POST /api/sessions/chat	60 requests	1 minute per user	Prevent AI API cost abuse
 POST /api/quiz/generate	10 requests	1 hour per user	Prevent quiz spam
 
 12.6 Caching Strategy (Redis)
@@ -909,11 +919,9 @@ Built by Abraham  |  Stack: Next.js · TypeScript · Node.js · Express · Mongo
 This document is the single source of truth for all engineers and AI agents working on BRAUDLE.
 ✅ Google OAuth login
 ✅ PDF upload (2 per day, 50MB max)
-✅ Image upload — handwritten notes (Groq Vision)
+✅ Image upload — handwritten notes (5 per day, Groq Vision)
 ✅ Background processing queue (BullMQ)
-✅ AI Teach Mode with streaming
-✅ Quiz generation + submission + scoring
-✅ Session summary
+✅ AI Interaction Mode with SSE streaming
 ✅ Basic StudentProfile
 ________________________________________
 ✅ Misconception Detection

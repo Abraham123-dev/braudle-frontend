@@ -10,7 +10,7 @@ export const Pricing = () => {
       name: "Free",
       price: "$0",
       description: "Start your learning journey.",
-      features: ["2 active documents", "Basic Teach Mode", "Standard Quiz generation", "50MB per file"],
+      features: ["2 uploads per day", "Adaptive Teach Mode", "Advanced 'Explain Like I'm' levels", "Deep Misconception Insights", "50MB PDF support"],
       cta: "Get Started",
       highlight: false
     },
@@ -18,7 +18,7 @@ export const Pricing = () => {
       name: "Pro",
       price: "$12",
       description: "For serious students.",
-      features: ["Unlimited documents", "Advanced Teach Mode", "Deep Misconception Detection", "Voice Learning Mode", "Priority AI Processing"],
+      features: ["Unlimited documents", "Voice Learning Mode", "Real-time AI Audio", "Advanced Breakdown Mode", "Priority AI Processing"],
       cta: "Go Pro",
       highlight: true
     },

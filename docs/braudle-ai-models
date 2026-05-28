@@ -82,13 +82,13 @@ NOTE	MCQ answer evaluation does NOT use the fast model. It uses the embedding mo
 llama-3.2-11b-vision-preview
 Provider: Groq   |   Tier: Free tier — included in daily limits   |   Speed: Moderate — image processing is slower than text
 
-Best for BRAUDLE: Transcribing handwritten student notes from uploaded photos
+Best for BRAUDLE: Transcribing handwritten student notes from uploaded photos (Limit: 5 uploads/day)
 
 This model is called ONLY when a student uploads an image. It runs in the BullMQ background queue so the student never waits for it. One call per image upload — very low volume.
 
 // How the vision call works
 const transcription = await groq.chat.completions.create({
-  model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+  model: 'llama-3.2-11b-vision-preview',
   messages: [{
     role: 'user',
     content: [

@@ -16,14 +16,16 @@ export const FeatureGrid = () => (
         </p>
       </div>
       
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {[
-          { icon: Search, title: "Multi-Format Input", desc: "Drop PDFs, lecture audio, or images. Our AI seamlessly digests all formats into personalized lessons." },
-          { icon: BrainCircuit, title: "Teach Mode", desc: "Experience step-by-step guidance. Braudle breaks down complex concepts intuitively, ensuring you truly understand." },
-          { icon: Target, title: "Practice & Exam Mode", desc: "Test yourself with tailored quizzes that adapt to your performance, simulating real exam conditions." },
-          { icon: ShieldCheck, title: "Misconception Detection", desc: "Braudle uniquely identifies the root causes behind your mistakes, correcting core misunderstandings." }
+          { icon: Search, title: "Multi-Format Input", desc: "Drop PDFs, lecture audio, or images of your notes. Our AI seamlessly digests all formats into personalized lessons." },
+          { icon: BrainCircuit, title: "Teach & Breakdown", desc: "Experience step-by-step guidance. Need it simpler? Just trigger 'Break It Down' for any confusing concept." },
+          { icon: Target, title: "Adaptive Quizzes", desc: "Test yourself with quizzes that target your weak spots. The AI learns where you're struggling and adapts in real-time." },
+          { icon: ShieldCheck, title: "Explain Like I'm...", desc: "Switch between Beginner, Intermediate, and Advanced explanation depths mid-session to match your comfort level." },
+          { icon: Search, title: "Voice Tutor", desc: "Natural speech-to-speech interaction. Talk to Braudle and hear responses as if you're in a real private tutoring session." },
+          { icon: Target, title: "Deep Analytics", desc: "A personalized progress dashboard that identifies your misconceptions and tracks your mastery across every subject." }
         ].map((feat, i) => (
-          <div key={i} className="bg-white p-10 rounded-[40px] border border-gray-100 h-full">
+          <div key={i} className="bg-white p-10 rounded-[40px] border border-gray-100 h-full hover:shadow-sm transition-shadow">
             <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center mb-8">
               <feat.icon className="w-6 h-6 text-brand-green" />
             </div>
