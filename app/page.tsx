@@ -24,19 +24,19 @@ export default function Home() {
         <FAQ />
         
         {/* Final CTA Container - Minimal style */}
-        <section className="px-8 mb-24">
-          <div className="max-w-5xl mx-auto bg-[#FFC527] py-12 lg:py-16 px-8 lg:px-12 relative overflow-hidden shadow-sm">
+        <section className="px-6 md:px-8 mb-12 md:mb-24">
+          <div className="max-w-5xl mx-auto bg-[#FFC527] py-12 lg:py-16 px-8 lg:px-12 relative overflow-hidden shadow-sm rounded-3xl lg:rounded-[40px]">
              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12 text-center md:text-left">
               <div className="space-y-6 max-w-lg">
-                <h2 className="text-3xl lg:text-5xl font-semibold text-brand-forest tracking-tight leading-[1.1]">
-                  Your education deserves <br /> better tools
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-brand-forest tracking-tight leading-[1.1]">
+                  Your education deserves <br className="hidden sm:block" /> better tools
                 </h2>
                 <p className="text-brand-forest/70 text-base lg:text-lg font-normal">
                   No matter what you're studying, Braudle is where <br className="hidden lg:block" />
                   deep understanding begins.
                 </p>
                 <div className="pt-2 flex justify-center md:justify-start">
-                  <Link href="/login" className="px-8 py-3.5 bg-[#2E1D13] text-white font-medium text-[15px] rounded-xl hover:bg-[#3d271a] transition-colors active:opacity-90 inline-block">
+                  <Link href="/login" className="w-full sm:w-auto px-8 py-3.5 bg-[#2E1D13] text-white font-medium text-[15px] rounded-xl hover:bg-[#3d271a] transition-colors active:opacity-90 text-center">
                     Try for free
                   </Link>
                 </div>

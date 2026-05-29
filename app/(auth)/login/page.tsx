@@ -32,7 +32,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="group flex w-full items-center justify-center gap-4 rounded-full border border-white/10 bg-white/5 py-3.5 px-6 text-[15px] font-medium text-white hover:bg-white/10 transition-colors active:scale-95 shadow-sm"
+              className="group flex w-full items-center justify-center gap-4 rounded-full border border-white/10 bg-white/5 py-4 px-6 text-[15px] font-medium text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-[0.98] shadow-2xl"
             >
               <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
@@ -55,7 +55,13 @@ export default function LoginPage() {
               Continue with Google
             </button>
 
-            <p className="text-[12px] text-gray-400 leading-relaxed font-normal">
+            <div className="flex items-center gap-3 justify-center py-2 opacity-50">
+              <div className="h-px bg-white/20 w-8" />
+              <span className="text-[10px] uppercase tracking-widest text-white/60">Secure OAuth 2.0</span>
+              <div className="h-px bg-white/20 w-8" />
+            </div>
+
+            <p className="text-[12px] text-gray-400 leading-relaxed font-normal text-center lg:text-left">
               By signing up, you agree to the <Link href="/terms" className="underline hover:text-brand-green">Terms of Use</Link>, <Link href="/privacy" className="underline hover:text-brand-green">Privacy Policy</Link>, and Cookie Notice.
             </p>
           </div>
@@ -63,23 +69,31 @@ export default function LoginPage() {
 
         {/* Right Side: Consistent Brand Image */}
         <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
-          <div className="relative w-full aspect-[4/5] max-w-sm rounded-[32px] overflow-hidden bg-brand-forest p-8 flex flex-col justify-end shadow-lg">
-            <div className="absolute inset-0 z-0">
+          <div className="relative w-full aspect-[4/5] max-w-sm rounded-[32px] overflow-hidden bg-brand-forest p-10 flex flex-col justify-end shadow-2xl">
+            <div className="absolute inset-0 z-0 group">
               <img 
-                src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
-                alt="Students studying"
-                className="w-full h-full object-cover opacity-60"
+                src="https://images.unsplash.com/photo-1519337265831-281ec6cc8514?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+                alt="Student using phone to study"
+                className="w-full h-full object-cover grayscale opacity-40"
               />
-              {/* Subtle green overlay to match brand vibe */}
-              <div className="absolute inset-0 bg-brand-forest/20" />
-              <div className="absolute inset-0 bg-linear-to-t from-brand-forest via-brand-forest/20 to-transparent" />
+              <div className="absolute inset-0 bg-brand-green/30 mix-blend-multiply" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-[#1A1A1A]/40 to-transparent" />
             </div>
             
-            <div className="relative z-20 space-y-4">
-              <div className="w-10 h-1.5 bg-brand-lime rounded-full" />
-              <h2 className="text-3xl font-semibold text-white leading-tight tracking-tight">
-                Empowering your <br /> academic journey
-              </h2>
+            <div className="relative z-20 space-y-6">
+              <div className="flex gap-1.5">
+                <div className="h-1.5 w-8 bg-brand-lime rounded-full" />
+                <div className="h-1.5 w-2 bg-white/20 rounded-full" />
+                <div className="h-1.5 w-2 bg-white/20 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-semibold text-white leading-[1.1] tracking-tight">
+                  Master concepts <br /> for free.
+                </h2>
+                <p className="text-white/50 text-sm font-normal">
+                  No subscriptions. No friction. Just deep understanding.
+                </p>
+              </div>
             </div>
           </div>
         </div>
