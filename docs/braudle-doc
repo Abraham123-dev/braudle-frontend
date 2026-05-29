@@ -2,7 +2,7 @@ BRAUDLE
 AI-Powered Personal Learning Platform
 
 Full Product & Technical Documentation
-Version 1.0  |  Stack: Next.js · TypeScript · Node.js · Express · MongoDB · Docker
+Version 1.0  |  Stack: Next.js (TS) · Node.js (JS) · Express · MongoDB · Docker
 
 Author: Abraham (Jide)  |  May 2026
 
@@ -65,7 +65,7 @@ High-level architecture, tech stack, and service breakdown
 3.1 Tech Stack
 Layer	Technology	Purpose
 Frontend	Next.js 14 + TypeScript	Web UI, routing, SSR, API calls
-Backend	Node.js + Express.js + TypeScript	REST API server, business logic
+Backend	Node.js + Express.js + JavaScript	REST API server, business logic
 AI Engine	Groq API (llama-3.3-70b-versatile)	Teaching, quiz generation, evaluation
 Database	MongoDB + Mongoose	All persistent data storage
 File Storage	AWS S3 / Cloudflare R2	Uploaded PDFs and audio files
@@ -328,41 +328,41 @@ Folder layout for frontend and backend
 braudle-backend/
 ├── src/
 │   ├── config/
-│   │   ├── db.ts              # MongoDB connection
-│   │   └── env.ts             # Environment variable validation
+│   │   ├── db.js              # MongoDB connection
+│   │   └── env.js             # Environment variable validation
 │   ├── models/
-│   │   ├── User.model.ts
-│   │   ├── StudentProfile.model.ts
-│   │   ├── Document.model.ts
-│   │   ├── Session.model.ts
-│   │   ├── Conversation.model.ts
-│   │   └── Quiz.model.ts
+│   │   ├── User.model.js
+│   │   ├── StudentProfile.model.js
+│   │   ├── Document.model.js
+│   │   ├── Session.model.js
+│   │   ├── Conversation.model.js
+│   │   └── Quiz.model.js
 │   ├── services/
-│   │   ├── ingestion.service.ts   # PDF extract + chunk
-│   │   ├── ai.service.ts          # Groq API calls + prompt builder
-│   │   ├── quiz.service.ts        # Quiz generation + evaluation
-│   │   └── profile.service.ts     # Adaptive profile updates
+│   │   ├── ingestion.service.js   # PDF extract + chunk
+│   │   ├── ai.service.js          # Groq API calls + prompt builder
+│   │   ├── quiz.service.js        # Quiz generation + evaluation
+│   │   └── profile.service.js     # Adaptive profile updates
 │   ├── routes/
-│   │   ├── auth.routes.ts
-│   │   ├── document.routes.ts
-│   │   ├── session.routes.ts
-│   │   ├── quiz.routes.ts
-│   │   └── profile.routes.ts
+│   │   ├── auth.routes.js
+│   │   ├── document.routes.js
+│   │   ├── session.routes.js
+│   │   ├── quiz.routes.js
+│   │   └── profile.routes.js
 │   ├── controllers/
-│   │   ├── auth.controller.ts
-│   │   ├── document.controller.ts
-│   │   ├── session.controller.ts
-│   │   ├── quiz.controller.ts
-│   │   └── profile.controller.ts
+│   │   ├── auth.controller.js
+│   │   ├── document.controller.js
+│   │   ├── session.controller.js
+│   │   ├── quiz.controller.js
+│   │   └── profile.controller.js
 │   ├── middleware/
-│   │   ├── auth.middleware.ts     # JWT validation
-│   │   ├── upload.middleware.ts   # Multer file handling
-│   │   └── error.middleware.ts    # Global error handler
+│   │   ├── auth.middleware.js     # JWT validation
+│   │   ├── upload.middleware.js   # Multer file handling
+│   │   └── error.middleware.js    # Global error handler
 │   ├── utils/
-│   │   ├── chunker.ts             # Text chunking logic
-│   │   ├── promptBuilder.ts       # Build layered AI prompts
-│   │   └── scoreCalculator.ts     # Quiz scoring logic
-│   └── app.ts                     # Express app setup
+│   │   ├── chunker.js             # Text chunking logic
+│   │   ├── promptBuilder.js       # Build layered AI prompts
+│   │   └── scoreCalculator.js     # Quiz scoring logic
+│   └── app.js                     # Express app setup
 ├── Dockerfile
 ├── .env.example
 └── package.json
@@ -417,7 +417,7 @@ llama-3.2-11b-vision	Handwriting/Image Transcription	Vision-capable for student 
 all-MiniLM-L6-v2 (HF)	Semantic Similarity Scoring	Evaluates short answers against correct ones without LLM calls
 flan-t5-large (HF)	Fast Answer Classification	Efficiently categorizes responses as 'Correct', 'Partial', etc.
 
-7B.3 SDK Setup (ai.service.ts)
+7B.3 SDK Setup (ai.service.js)
 
 // Install: npm install groq-sdk
 
@@ -499,12 +499,12 @@ How AI coding agents should interpret and work on this codebase
 BRAUDLE is an AI-powered personal tutor web app. It is NOT a summariser, flashcard app, or chatbot. It is a full adaptive learning system. Every feature should serve the core mission: teach students effectively and personally.
 
 10.2 Core Rules for Agents
-•	Always use TypeScript — no plain JavaScript files in src/
+•	Use JavaScript (ESM) for backend — use TypeScript for frontend only
 •	Auth is Google OAuth ONLY — never add password fields, bcrypt, or manual registration logic
 •	All API routes must have JWT middleware unless explicitly marked public (Google callback routes are public)
 •	Never hardcode API keys — always read from process.env
-•	All Groq API calls must go through ai.service.ts — never call Groq directly in controllers
-•	Chunking logic lives exclusively in utils/chunker.ts — do not duplicate it
+•	All Groq API calls must go through ai.service.js — never call Groq directly in controllers
+•	Chunking logic lives exclusively in utils/chunker.js — do not duplicate it
 •	Every new MongoDB model must follow the existing schema pattern with timestamps: true
 •	Use async/await throughout — no .then() chains
 •	All errors must be passed to next(error) for the global error handler to catch
@@ -514,7 +514,7 @@ When an agent is implementing or extending a learning session, follow this logic
 
 •	1. Post-Upload: System prompts user for intent ('Teach Mode', 'Explain concepts', 'I sabi am, give me quiz', 'Exam', or 'Others')
 •	2. Session starts — load document chunks from DB and initialize based on chosen mode
-•	3. Build prompt using promptBuilder.ts with: role definition + student level + mode-specific instructions + document context
+•	3. Build prompt using promptBuilder.js with: role definition + student level + mode-specific instructions + document context
 •	4. Call Groq API and stream response to frontend via SSE
 •	5. Save AI response to Conversation.messages[]
 •	6. Handle student input differently per mode:
@@ -525,11 +525,11 @@ When an agent is implementing or extending a learning session, follow this logic
 
 10.4 Key Files Agents Should Know
 File	What It Does
-src/services/ai.service.ts	Single source of truth for all Groq API calls. Contains buildPrompt() and callGroq() functions.
-src/utils/chunker.ts	Splits raw document text into learning-sized chunks. Do not modify without understanding overlap logic.
-src/utils/promptBuilder.ts	Assembles the 5-layer system prompt for each AI call. Inject student context here.
-src/services/profile.service.ts	Updates StudentProfile after every quiz. Contains scoring thresholds and level-up logic.
-src/middleware/auth.middleware.ts	JWT validation. Attaches req.user to every protected request.
+src/services/ai.service.js	Single source of truth for all Groq API calls. Contains buildPrompt() and callGroq() functions.
+src/utils/chunker.js	Splits raw document text into learning-sized chunks. Do not modify without understanding overlap logic.
+src/utils/promptBuilder.js	Assembles the 5-layer system prompt for each AI call. Inject student context here.
+src/services/profile.service.js	Updates StudentProfile after every quiz. Contains scoring thresholds and level-up logic.
+src/middleware/auth.middleware.js	JWT validation. Attaches req.user to every protected request.
 
 📄  SECTION 11: DOCUMENT UPLOAD SYSTEM & RATE LIMITING
 Large file handling, background queues, and daily enforcement
@@ -615,7 +615,7 @@ File Upload Safety	Multer type + size checks	Malicious file uploads, oversized p
 MongoDB Security	Atlas IP whitelist + auth	Unauthorized database access
 
 12.2 Express Security Setup
-Apply these in app.ts before any route is registered:
+Apply these in app.js before any route is registered:
 
 import helmet               from 'helmet';
 import cors                 from 'cors';
@@ -709,28 +709,19 @@ redis	Redis — queue + cache	6379	none
 
 # braudle-backend/Dockerfile
 
-# Stage 1 — Build
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci                          # clean install — faster, locked versions
-COPY . .
-RUN npm run build                   # compile TypeScript → dist/
-
-# Stage 2 — Production (smaller image)
-FROM node:20-alpine AS production
+FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm ci --only=production        # no devDependencies
-COPY --from=builder /app/dist ./dist
+RUN npm ci --only=production
+COPY . .
 
 # Security: run as non-root user
 RUN addgroup -S braudle && adduser -S braudle -G braudle
 USER braudle
 
 EXPOSE 5000
-CMD ["node", "dist/app.js"]
+CMD ["node", "src/app.js"]
 
 13.3 Frontend Dockerfile
 
@@ -773,7 +764,7 @@ services:
 
   worker:
     build: ./braudle-backend
-    command: node dist/workers/pdf.worker.js
+    command: node src/workers/pdf.worker.js
     env_file: ./braudle-backend/.env
     depends_on: [mongo, redis]
 
@@ -834,10 +825,8 @@ npm install groq-sdk
 # Input validation
 npm install zod
 
-# TypeScript dev dependencies
-npm install -D typescript ts-node nodemon @types/express @types/node
-npm install -D @types/passport @types/passport-google-oauth20
-npm install -D @types/jsonwebtoken @types/multer @types/cookie-parser @types/cors @types/hpp
+# Dev dependencies
+npm install -D nodemon
 
 14.3 Frontend — NPM Packages to Install
 Run these inside your braudle-frontend/ folder:
@@ -903,19 +892,19 @@ curl http://localhost:5000/api/health
 
 14.8 Build Order — What to Build First
 Order	What to Build	Why This Order
-1	Project scaffolding — folders, tsconfig, Docker, .env	Everything depends on this foundation
+1	Project scaffolding — folders, Docker, .env	Everything depends on this foundation
 2	MongoDB connection + all Mongoose models	Auth and every other service needs the DB
 3	Google OAuth + JWT — full auth flow	Every protected route needs this working first
-4	PDF upload endpoint + rate limiting middleware	Core input — nothing works without uploaded content
-5	BullMQ worker — pdf-parse + semantic chunker	Processes the uploaded files into teachable chunks
-6	Groq AI service — buildPrompt + callGroq + stream	The brain of BRAUDLE — needed for teach mode
-7	Teach Mode — session start, message loop, streaming	Core MVP feature
+4	Document upload endpoint + rate limiting middleware	Core input — nothing works without uploaded content
+5	BullMQ worker — extraction + semantic chunker	Processes the uploaded files into teachable chunks
+6	Groq AI service — buildPrompt + callGroq + stream	The brain of BRAUDLE — needed for the tutor
+7	Learning Session — start, message loop, streaming	Core MVP feature
 8	Quiz generation + submission + scoring	Completes the learning loop
 9	Session summary + profile update	Closes the MVP loop
 10	Frontend — auth, dashboard, upload, session, quiz pages	Build UI last — it just consumes the API
 
 BRAUDLE — Full Technical Documentation v4.0
-Built by Abraham  |  Stack: Next.js · TypeScript · Node.js · Express · MongoDB · Docker · Groq API
+Built by Abraham  |  Stack: Next.js (TS) · Node.js (JS) · Express · MongoDB · Docker · Groq API
 This document is the single source of truth for all engineers and AI agents working on BRAUDLE.
 ✅ Google OAuth login
 ✅ PDF upload (2 per day, 50MB max)

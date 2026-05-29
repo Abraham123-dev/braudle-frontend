@@ -4,7 +4,7 @@ AI MODEL DOCUMENTATION
 Complete guide to every AI model, provider, routing decision,
 caching strategy, rate limiting, cost control, and JavaScript integration
 
-Author: Abraham  |  Version 1.0  |  May 2026  |  Stack: Node.js + TypeScript
+Author: Abraham  |  Version 1.0  |  May 2026  |  Stack: Node.js + JavaScript
 
 ZERO COST	Every model in this document is on a free tier. BRAUDLE spends nothing on AI until it has paying foundations. Groq free tier + Hugging Face free tier + smart caching = zero monthly AI cost.
  
