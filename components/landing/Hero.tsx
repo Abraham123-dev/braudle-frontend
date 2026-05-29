@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 
 export const Hero = () => (
-  <section className="pt-20 lg:pt-32 pb-24 px-8 max-w-7xl mx-auto">
+  <section className="pt-20 lg:pt-32 pb-12 md:pb-24 px-8 max-w-7xl mx-auto">
     <div className="grid lg:grid-cols-2 items-center gap-16 lg:text-left text-center">
       <div className="space-y-10">
         <div className="space-y-6">
@@ -46,39 +46,101 @@ export const Hero = () => (
       </div>
 
       <motion.div 
-        initial={{ x: 40, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.8 }}
-        className="relative rounded-[32px] overflow-hidden aspect-square lg:aspect-[4/4.5] w-full max-w-lg lg:max-w-lg ml-auto bg-brand-green p-8 lg:p-10 flex flex-col justify-between"
+        variants={{
+          hidden: { opacity: 0 },
+          show: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.1
+            }
+          }
+        }}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-2 gap-3 md:gap-4 w-full h-[650px] md:h-[500px] lg:h-[600px]"
       >
-        {/* Tinted Background Image */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-brand-green/60 mix-blend-multiply z-10" />
-          <div className="absolute inset-0 bg-gradient-to-t from-brand-green via-transparent to-transparent z-10" />
-          <img 
-            src="https://images.unsplash.com/photo-1519337265831-281ec6cc8514?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
-            alt="Student using phone to study"
-            className="w-full h-full object-cover grayscale opacity-50"
-          />
-        </div>
+        {/* Box 1: The Product / Vision - Full width on small mobile, back to 1x1 on Tablet */}
+        <motion.div 
+          variants={{
+            hidden: { y: 20, opacity: 0 },
+            show: { y: 0, opacity: 1 }
+          }}
+          className="relative rounded-[24px] overflow-hidden bg-brand-green p-6 flex flex-col justify-end group col-span-2 md:col-span-1"
+        >
+          <div className="absolute inset-0 z-0 opacity-40 group-hover:scale-105 transition-transform duration-700">
+            <img 
+              src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+              alt="Deep Work"
+              className="w-full h-full object-cover grayscale"
+            />
+            <div className="absolute inset-0 bg-brand-green/40 mix-blend-multiply" />
+          </div>
+          <div className="relative z-10 space-y-2">
+            <span className="text-[9px] font-bold text-brand-lime uppercase tracking-[0.2em]">The Mission</span>
+            <h3 className="text-xl font-semibold text-white leading-tight">Elite Tutoring <br /> for Everyone.</h3>
+          </div>
+        </motion.div>
 
-        <div className="relative z-20">
-          <span className="inline-block px-3 py-1 bg-brand-lime text-brand-forest text-[9px] font-semibold uppercase tracking-[0.2em] rounded-full mb-4">
-            Study Smarter
-          </span>
-          <h2 className="text-3xl lg:text-4xl font-semibold text-white leading-[1.1] tracking-tight">
-            Turn Your Notes <br /> Into Expert <br /> Knowledge
-          </h2>
-        </div>
+        {/* Box 2: The Adaptive Intelligence (Brand Color) */}
+        <motion.div 
+          variants={{
+            hidden: { y: 20, opacity: 0 },
+            show: { y: 0, opacity: 1 }
+          }}
+          className="relative rounded-[24px] overflow-hidden bg-brand-forest p-6 flex flex-col justify-between border border-white/10"
+        >
+          <div className="flex justify-between items-start">
+            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="opacity-50">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          <p className="text-[13px] md:text-sm font-medium text-white/90 leading-snug italic">
+            "It finds where my logic breaks and fixes it."
+          </p>
+        </motion.div>
 
-        <div className="relative z-20 mt-auto">
-          <Link href="/login" className="flex items-center justify-center gap-2 w-full py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl font-medium text-[15px] hover:bg-white/20 transition-colors group">
-            Upload Your First Note
-            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 6H10M10 6L7 3M10 6L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Box 3: The Mastery (Lime Stat) */}
+        <motion.div 
+          variants={{
+            hidden: { y: 20, opacity: 0 },
+            show: { y: 0, opacity: 1 }
+          }}
+          className="relative rounded-[24px] overflow-hidden bg-brand-lime p-6 flex flex-col justify-center"
+        >
+          <h4 className="text-4xl md:text-5xl font-bold text-brand-forest tracking-tighter">3x</h4>
+          <p className="text-[9px] font-bold text-brand-forest uppercase tracking-[0.15em] mt-1">Faster Concept <br /> Retention</p>
+          <div className="mt-4 flex gap-1">
+            {[1,2,3].map(i => <div key={i} className="h-1 w-full bg-brand-forest/20 rounded-full overflow-hidden">
+               <motion.div 
+                 initial={{ width: 0 }}
+                 animate={{ width: "100%" }}
+                 transition={{ delay: 1, duration: 1.5 }}
+                 className="h-full bg-brand-forest"
+               />
+            </div>)}
+          </div>
+        </motion.div>
+
+        {/* Box 4: The Hero CTA / Upload - Wide bar at the bottom */}
+        <motion.div 
+          variants={{
+            hidden: { y: 20, opacity: 0 },
+            show: { y: 0, opacity: 1 }
+          }}
+          className="relative rounded-[24px] overflow-hidden bg-gray-50 p-6 flex items-center justify-between group cursor-pointer hover:bg-gray-100 transition-colors col-span-2 md:col-span-1"
+        >
+          <div className="relative z-10">
+            <h3 className="text-lg font-semibold text-gray-900 leading-tight">Ready to level up?</h3>
+            <p className="text-[11px] text-gray-500 mt-1">Join 2,000+ students today</p>
+          </div>
+          <Link href="/login" className="relative z-10 w-12 h-12 rounded-full bg-brand-green text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-brand-green/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </Link>
-        </div>
+        </motion.div>
       </motion.div>
     </div>
   </section>
