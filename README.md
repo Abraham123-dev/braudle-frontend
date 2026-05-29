@@ -12,11 +12,11 @@ We believe AI in education shouldn't be a "shortcut" to a grade, but a "ladder" 
 
 ## 🚀 Key Features
 
-- **Teach Mode (SSE)**: Real-time, step-by-step guidance using Server-Sent Events for a natural tutoring feel.
-- **Multi-Format Ingestion**: Upload PDFs, whiteboard images, or lecture audio.
-- **Adaptive Quizzes**: Quizzes that target your historical weak spots and misconceptions.
+- **Teach Mode (SSE)**: Real-time, step-by-step guidance using Server-Sent Events (SSE) for a natural "tutor typing" feel.
+- **Multi-Format Ingestion**: Upload PDFs, whiteboard images, or even lecture audio.
+- **Adaptive Quizzes**: MCQ and theory questions targeting your historical weak spots and misconceptions.
 - **Explain Like I'm...**: Switch between Beginner, Intermediate, and Advanced depths mid-conversation.
-- **Deep Analytics**: A dashboard showing where your logic breaks, not just what you got wrong.
+- **Deep Analytics**: A logic-first dashboard tracking your average scores, sessions, and subject mastery.
 
 ## 🛠️ Tech Stack
 
@@ -28,18 +28,22 @@ We believe AI in education shouldn't be a "shortcut" to a grade, but a "ladder" 
 - **Icons**: Lucide React / Custom SVGs
 
 ### Backend (JavaScript ESM)
-- **Environment**: Node.js (ES Modules)
-- **AI Brain**: Groq AI Engine
+- **Environment**: Node.js + Express.js
+- **Database**: MongoDB + Mongoose
+- **Auth**: Passport.js (Google OAuth 2.0) + JWT
+- **Background Tasks**: BullMQ + Redis (for stable async PDF processing)
+- **AI Engine**: Groq AI Engine
   - **Teaching**: `llama-3.3-70b`
   - **Vision/OCR**: `llama-3.2-11b`
-- **Streaming**: SSE (Server-Sent Events)
 
 ## 📦 Getting Started
 
 ### Prerequisites
 - Node.js (v18+)
+- MongoDB (Atlas or local)
+- Redis (for BullMQ queues)
 - Groq API Key
-- Supabase (Auth & Database)
+- Google OAuth Credentials
 
 ### Installation
 
@@ -55,11 +59,18 @@ We believe AI in education shouldn't be a "shortcut" to a grade, but a "ladder" 
    ```
 
 3. **Environment Setup**:
-   Create a `.env.local` file:
+   Create a `.env.local` file (Frontend) and `.env` (Backend):
    ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
+   # Frontend
+   NEXT_PUBLIC_API_URL=http://localhost:5000/api
+   
+   # Backend
+   MONGODB_URI=your_mongodb_uri
+   REDIS_URL=your_redis_url
    GROQ_API_KEY=your_key
+   GOOGLE_CLIENT_ID=your_id
+   GOOGLE_CLIENT_SECRET=your_secret
+   JWT_SECRET=your_jwt_secret
    ```
 
 4. **Run development server**:
@@ -69,9 +80,10 @@ We believe AI in education shouldn't be a "shortcut" to a grade, but a "ladder" 
 
 ## 🔒 Architecture & Rate Limits
 
-Braudle is designed for a zero-cost AI architecture by leveraging Groq's high-speed inference. To maintain sustainability:
+Braudle is designed for a zero-cost AI architecture by leveraging Groq's high-speed inference and local document parsing.
 - **Free Limit**: 2 PDF uploads / 5 Image OCRs per day.
-- **Inference**: SSE ensures that long teaching sessions don't time out and feel interactive.
+- **Processing**: Local parsing via `pdf-parse` (eliminates extraction costs) and BullMQ for background stability.
+- **Inference**: SSE ensures that long teaching sessions remain persistent and interactive.
 
 ## 📜 License
 
