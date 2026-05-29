@@ -85,16 +85,17 @@ export const Navbar = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed inset-0 min-h-screen w-screen bg-brand-green z-[55] flex flex-col p-8 pt-12"
+            className="fixed inset-0 min-h-screen w-screen bg-brand-green z-[55] flex flex-col p-8 pt-6"
           >
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="mb-20"
-            >
-              <Link href="/" onClick={() => setIsOpen(false)} className="font-semibold text-2xl text-white tracking-tight">Braudle</Link>
-            </motion.div>
+            <div className="flex items-center justify-between h-10 mb-20">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Link href="/" onClick={() => setIsOpen(false)} className="font-semibold text-xl text-white tracking-tight">Braudle</Link>
+              </motion.div>
+            </div>
 
             <div className="flex flex-col gap-6">
               {navLinks.map((link, i) => (

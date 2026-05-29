@@ -56,8 +56,8 @@ export const Hero = () => (
           <div className="absolute inset-0 bg-brand-green/60 mix-blend-multiply z-10" />
           <div className="absolute inset-0 bg-gradient-to-t from-brand-green via-transparent to-transparent z-10" />
           <img 
-            src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
-            alt="Students studying"
+            src="https://images.unsplash.com/photo-1519337265831-281ec6cc8514?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+            alt="Student using phone to study"
             className="w-full h-full object-cover grayscale opacity-50"
           />
         </div>
