@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] font-sans antialiased flex flex-col items-center lg:justify-center justify-start p-8 pt-24 lg:pt-8">
-      <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24">
+     <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24">
         {/* Left Side: Auth Section */}
         <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-8">
           <div className="space-y-3">
