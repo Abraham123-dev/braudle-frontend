@@ -8,20 +8,20 @@ export const HowItWorks = () => {
   const steps = [
     {
       icon: Upload,
-      title: "Upload your materials",
-      description: "Upload PDFs, lecture audio, notes, or even images of your whiteboard. Braudle's AI ingests every format with precision.",
+      title: "Set up & Upload",
+      description: "Sign in effortlessly, tell us how you prefer to learn, and upload your PDFs or images. Our AI extracts the concepts in seconds.",
       color: "bg-brand-green/10 text-brand-green"
     },
     {
       icon: Cpu,
-      title: "Start 'Teach Mode'",
-      description: "Instead of reading a summary, your AI tutor explains concepts step-by-step. It pauses to ask you questions, ensuring you understand before moving on.",
+      title: "Real-time AI Tutor",
+      description: "Start a session and chat live with an AI tutor that understands your exact document. It breaks down complex topics at your pace.",
       color: "bg-brand-lime/20 text-brand-forest"
     },
     {
       icon: GraduationCap,
-      title: "Conquer the Quiz",
-      description: "Test your knowledge with adaptive quizzes that target your weak spots. Get instant feedback and deep explanations for every answer.",
+      title: "Adaptive Quizzes",
+      description: "Test your knowledge with quizzes generated straight from your material. Get intelligent, semantic grading on your answers to level up.",
       color: "bg-brand-forest text-brand-lime"
     }
   ];

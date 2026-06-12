@@ -1,65 +1,81 @@
 'use client';
 
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { useStore } from '@/lib/store';
+import { api } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
 function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useStore((state) => state.setUser);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check for a token parameter in query search params (e.g. ?token=jwt_value_here)
-    const token = searchParams.get('token');
-    const userId = searchParams.get('userId');
-    const name = searchParams.get('name');
-    const email = searchParams.get('email');
-    const avatar = searchParams.get('avatar') || undefined;
+    async function verifyAuth() {
+      // Magic Link verification
+      const token = searchParams.get('token');
+      
+      if (token) {
+        try {
+          // Call the backend to verify the magic link token
+          const res = await api.post<{ user: any; message: string }>('/auth/email/verify', { token });
+          
+          if (res.user) {
+            auth.setCurrentUser(res.user);
+            setUser(res.user);
+            router.replace('/dashboard');
+            return;
+          }
+        } catch (err: any) {
+          setError(err.message || 'Invalid or expired login link.');
+          setTimeout(() => {
+            router.replace('/login');
+          }, 3000);
+          return;
+        }
+      }
 
-    if (token && userId && name && email) {
-      // Save details to helper and store
-      auth.setToken(token);
-      
-      const loggedUser = {
-        id: userId,
-        name,
-        email,
-        avatar,
-        role: 'student' as const,
-      };
-      
-      auth.setCurrentUser(loggedUser);
-      setUser(loggedUser);
-
-      // Redirect to student dashboard
-      router.replace('/dashboard');
-    } else {
-      // If no token exists, fallback check if we have a cookie, or redirect to login
-      const localUser = auth.getCurrentUser();
-      const localToken = auth.getToken();
-      
-      if (localUser && localToken) {
-        setUser(localUser);
-        router.replace('/dashboard');
-      } else {
+      // If no token in URL, maybe we were redirected here from Google Auth?
+      // Check if we can fetch the user profile using the httpOnly cookie
+      try {
+        const res = await api.get<{ user: any }>('/auth/me');
+        if (res.user) {
+          auth.setCurrentUser(res.user);
+          setUser(res.user);
+          router.replace('/dashboard');
+          return;
+        }
+      } catch (err) {
+        // Not authenticated
         router.replace('/login');
       }
     }
+
+    verifyAuth();
   }, [searchParams, router, setUser]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#1A1A1A]">
       <div className="text-center flex flex-col items-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 dark:text-indigo-400" />
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Authenticating study profile...
-        </h2>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Please wait while we establish your private tutor session.
-        </p>
+        {error ? (
+          <div className="text-red-400 font-medium">
+            <p>{error}</p>
+            <p className="text-xs opacity-70 mt-2">Redirecting to login...</p>
+          </div>
+        ) : (
+          <>
+            <Loader2 className="w-10 h-10 animate-spin text-brand-green" />
+            <h2 className="text-lg font-semibold text-white">
+              Authenticating study profile...
+            </h2>
+            <p className="text-xs text-white/50">
+              Please wait while we establish your session.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -69,8 +85,8 @@ export default function AuthCallbackPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-600 dark:text-indigo-400" />
+        <div className="flex min-h-screen flex-col items-center justify-center bg-[#1A1A1A]">
+          <Loader2 className="w-10 h-10 animate-spin text-brand-green" />
         </div>
       }
     >

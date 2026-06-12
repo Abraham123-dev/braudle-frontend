@@ -1,38 +1,121 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { api } from '@/lib/api';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 
 export default function LoginPage() {
+  const [isEmailOpen, setIsEmailOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+
   const handleGoogleLogin = () => {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
     window.location.href = `${backendUrl}/api/auth/google`;
   };
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const res = await api.post<{ message: string }>('/auth/email/start', { email });
+      setSuccess(res.message || 'Check your email for the magic link!');
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#1A1A1A] font-sans antialiased flex flex-col items-center lg:justify-center justify-start p-8 pt-24 lg:pt-8">
+    <div className="min-h-screen bg-[#1A1A1A] font-sans antialiased flex flex-col items-center lg:justify-center justify-start p-8 pt-24 lg:pt-8 text-white">
      <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24">
         {/* Left Side: Auth Section */}
         <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-8">
           <div className="space-y-3">
              {/* Simple Logo Icon */}
-             <div className="w-10 h-10 bg-brand-forest rounded-lg flex items-center justify-center mb-8 hidden lg:flex">
-                <div className="w-5 h-5 bg-brand-lime rounded-sm rotate-45" />
+             <div className="w-10 h-10 bg-[#4A783A] rounded-lg flex items-center justify-center mb-8 hidden lg:flex shadow-sm">
+                <div className="w-5 h-5 bg-[#C2E1A6] rounded-sm rotate-45" />
              </div>
              
-             <h1 className="text-4xl lg:text-5xl font-semibold text-white leading-[1.2] tracking-tight">
-               Welcome to <span className="text-brand-green">Braudle</span>
+             <h1 className="text-4xl lg:text-5xl font-serif font-medium leading-[1.2] tracking-tight">
+               Welcome to Braudle
              </h1>
-             <p className="text-lg lg:text-xl text-gray-400 font-medium tracking-tight">
+             <p className="text-lg lg:text-xl text-gray-400">
                Your AI tutor for deep learning
              </p>
           </div>
 
           <div className="w-full max-w-sm space-y-6">
+            
+            {/* Email Section */}
+            {!isEmailOpen ? (
+              <button
+                type="button"
+                onClick={() => setIsEmailOpen(true)}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#4A783A] py-4 px-6 text-[15px] font-semibold text-white hover:bg-[#3D6330] transition-colors shadow-sm"
+              >
+                Continue with email
+              </button>
+            ) : (
+              <form onSubmit={handleEmailSubmit} className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                {success ? (
+                  <div className="p-4 rounded-xl bg-[#4A783A]/20 border border-[#C2E1A6]/20 text-[#C2E1A6] text-sm flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+                    <p>{success}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        id="email-input"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder=" "
+                        required
+                        className="peer w-full rounded-xl border border-white/10 bg-transparent px-5 pt-6 pb-2 text-[15px] text-white focus:border-[#4A783A] focus:outline-none transition-colors shadow-sm"
+                      />
+                      <label 
+                        htmlFor="email-input"
+                        className="absolute left-5 top-4 text-gray-500 text-[15px] transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-[15px] peer-focus:top-1.5 peer-focus:text-[11px] peer-focus:font-semibold peer-focus:text-[#C2E1A6] peer-valid:top-1.5 peer-valid:text-[11px] peer-valid:font-semibold peer-valid:text-[#C2E1A6] pointer-events-none"
+                      >
+                        Email address
+                      </label>
+                    </div>
+                    {error && (
+                      <p className="text-red-400 text-sm font-medium">{error}</p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={loading || !email}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#4A783A] py-4 px-6 text-[15px] font-semibold text-white hover:bg-[#3D6330] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send Login Link'}
+                    </button>
+                  </>
+                )}
+              </form>
+            )}
+
+            <div className="flex items-center gap-3 justify-center py-2">
+              <div className="h-px bg-white/10 flex-1" />
+              <span className="text-[11px] uppercase tracking-wider text-white/40 font-medium">OR</span>
+              <div className="h-px bg-white/10 flex-1" />
+            </div>
+
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="group flex w-full items-center justify-center gap-4 rounded-full border border-white/10 bg-white/5 py-4 px-6 text-[15px] font-medium text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-[0.98] shadow-2xl"
+              className="flex w-full items-center justify-center gap-4 rounded-xl border border-white/10 bg-white/5 py-4 px-6 text-[15px] font-medium text-white hover:bg-white/10 transition-colors shadow-sm"
             >
               <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
@@ -55,39 +138,32 @@ export default function LoginPage() {
               Continue with Google
             </button>
 
-            <div className="flex items-center gap-3 justify-center py-2 opacity-50">
-              <div className="h-px bg-white/20 w-8" />
-              <span className="text-[10px] uppercase tracking-widest text-white/60">Secure OAuth 2.0</span>
-              <div className="h-px bg-white/20 w-8" />
-            </div>
-
-            <p className="text-[12px] text-gray-400 leading-relaxed font-normal text-center lg:text-left">
-              By signing up, you agree to the <Link href="/terms" className="underline hover:text-brand-green">Terms of Use</Link>, <Link href="/privacy" className="underline hover:text-brand-green">Privacy Policy</Link>, and Cookie Notice.
+            <p className="text-[12px] text-gray-500 leading-relaxed font-normal text-center lg:text-left mt-6">
+              By continuing, you agree to the <Link href="/terms" className="underline hover:text-white transition-colors">Terms of Use</Link>, <Link href="/privacy" className="underline hover:text-white transition-colors">Privacy Policy</Link>, and Cookie Notice.
             </p>
           </div>
         </div>
 
         {/* Right Side: Consistent Brand Image */}
         <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
-          <div className="relative w-full aspect-[4/5] max-w-sm rounded-[32px] overflow-hidden bg-brand-forest p-10 flex flex-col justify-end shadow-2xl">
+          <div className="relative w-full aspect-[4/5] max-w-sm rounded-[32px] overflow-hidden bg-[#2D3F2D] p-10 flex flex-col justify-end">
             <div className="absolute inset-0 z-0 group">
               <img 
                 src="https://images.unsplash.com/photo-1519337265831-281ec6cc8514?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
                 alt="Student using phone to study"
-                className="w-full h-full object-cover grayscale opacity-40"
+                className="w-full h-full object-cover mix-blend-overlay opacity-50 grayscale"
               />
-              <div className="absolute inset-0 bg-brand-green/30 mix-blend-multiply" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-[#1A1A1A]/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-[#1A1A1A]/50 to-transparent opacity-90" />
             </div>
             
             <div className="relative z-20 space-y-6">
               <div className="flex gap-1.5">
-                <div className="h-1.5 w-8 bg-brand-lime rounded-full" />
+                <div className="h-1.5 w-8 bg-[#C2E1A6] rounded-full" />
                 <div className="h-1.5 w-2 bg-white/20 rounded-full" />
                 <div className="h-1.5 w-2 bg-white/20 rounded-full" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-3xl font-semibold text-white leading-[1.1] tracking-tight">
+                <h2 className="text-3xl font-serif font-medium text-white leading-[1.1] tracking-tight">
                   Master concepts <br /> for free.
                 </h2>
                 <p className="text-white/50 text-sm font-normal">
