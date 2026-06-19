@@ -4,9 +4,9 @@ import React from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { auth } from '@/lib/auth';
 import { useStore } from '@/lib/store';
-import { LogOut } from 'lucide-react';
+import { LogOut, BookOpen, Compass, Trophy } from 'lucide-react';
 
-export default function DashboardPage() {
+export default function HomeLearningPage() {
   const user = useStore((state) => state.user);
   const setUser = useStore((state) => state.setUser);
 
@@ -17,24 +17,24 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-brand-charcoal text-white font-sans flex flex-col">
-        {/* Navbar */}
-        <header className="border-b border-white/5 py-4 px-6 bg-white/5 backdrop-blur-md sticky top-0 z-10">
+      <div className="min-h-screen bg-white text-brand-forest font-sans flex flex-col">
+        {/* Top Header */}
+        <header className="border-b border-gray-100 py-4 px-6 bg-white/80 backdrop-blur-md sticky top-0 z-50">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center text-white font-black text-sm">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center text-white font-black text-sm">
                 B
-              </span>
-              <span className="font-bold text-white tracking-wider">BRAUDLE</span>
+              </div>
+              <span className="font-bold text-brand-forest tracking-wider uppercase text-sm">Braudle</span>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="text-xs text-gray-400 font-medium">
-                Hi, {user?.name}
+              <span className="text-xs text-gray-500 font-medium">
+                Hi, <strong className="text-brand-forest font-semibold">{user?.name}</strong>
               </span>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-all cursor-pointer"
+                className="p-2 rounded-xl text-gray-400 hover:text-rose-600 hover:bg-gray-50 transition-all cursor-pointer"
                 title="Logout"
               >
                 <LogOut className="w-4 h-4" />
@@ -43,16 +43,47 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12 flex flex-col justify-center items-center text-center space-y-6">
-          <div className="w-16 h-16 bg-brand-green/20 border border-brand-green/30 rounded-3xl flex items-center justify-center">
-            <span className="text-brand-lime font-black text-2xl">B</span>
-          </div>
-          <div className="space-y-2 max-w-md">
-            <h2 className="text-2xl font-bold text-white">Welcome to Braudle Dashboard</h2>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Authentication is verified. Mock data has been cleaned up. The dashboard is ready to be redesigned for backend API integration.
+        {/* Workspace Canvas Container */}
+        <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12 flex flex-col">
+          {/* Welcome Dashboard Banner */}
+          <div className="mb-12">
+            <h1 className="text-3xl font-bold tracking-tight text-brand-forest">Home Learning</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Welcome back! This is your personalized home learning space.
             </p>
+          </div>
+
+          {/* Grid Canvas for Future Features */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1">
+            <div className="border border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[300px] bg-gray-50/50">
+              <div className="w-12 h-12 bg-brand-green/10 text-brand-green rounded-full flex items-center justify-center mb-4">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-brand-forest text-base mb-1">Your Library</h3>
+              <p className="text-xs text-gray-500 max-w-[200px] leading-relaxed">
+                Start uploading your notes and textbooks here.
+              </p>
+            </div>
+
+            <div className="border border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[300px] bg-gray-50/50">
+              <div className="w-12 h-12 bg-brand-green/10 text-brand-green rounded-full flex items-center justify-center mb-4">
+                <Compass className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-brand-forest text-base mb-1">Learning Space</h3>
+              <p className="text-xs text-gray-500 max-w-[200px] leading-relaxed">
+                Personalized AI tutoring session will launch from here.
+              </p>
+            </div>
+
+            <div className="border border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[300px] bg-gray-50/50">
+              <div className="w-12 h-12 bg-brand-green/10 text-brand-green rounded-full flex items-center justify-center mb-4">
+                <Trophy className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-brand-forest text-base mb-1">Weekly Challenge</h3>
+              <p className="text-xs text-gray-500 max-w-[200px] leading-relaxed">
+                Adaptive quizzes and streak metrics will appear here.
+              </p>
+            </div>
           </div>
         </main>
       </div>

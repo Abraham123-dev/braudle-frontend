@@ -24,13 +24,9 @@ export function useAuth(requireAuth = true) {
           auth.setCurrentUser(response.user);
           setUser(response.user);
 
-          // Redirect to dashboard if logged in on login page
+          // Redirect to home if logged in on login page
           if (pathname === '/login') {
-            if (response.user.onboardingComplete) {
-              router.replace('/dashboard');
-            } else {
-              router.replace('/onboarding');
-            }
+            router.replace('/home');
           }
         } else {
           throw new Error('No user data returned');
@@ -68,11 +64,7 @@ export function useAuth(requireAuth = true) {
                 auth.setCurrentUser(res.user);
                 setUser(res.user);
                 if (pathname === '/login') {
-                  if (res.user.onboardingComplete) {
-                    router.replace('/dashboard');
-                  } else {
-                    router.replace('/onboarding');
-                  }
+                  router.replace('/home');
                 }
               }
             })
@@ -87,11 +79,7 @@ export function useAuth(requireAuth = true) {
     } else {
       setInitialized(true);
       if (pathname === '/login') {
-        if (user.onboardingComplete) {
-          router.replace('/dashboard');
-        } else {
-          router.replace('/onboarding');
-        }
+        router.replace('/home');
       }
     }
 

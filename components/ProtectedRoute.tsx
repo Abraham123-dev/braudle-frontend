@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { auth, User } from '@/lib/auth';
@@ -13,7 +13,6 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const { user, setUser, setIsLoading } = useStore();
   
   const [mounted, setMounted] = useState(false);
@@ -39,7 +38,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         if (response.user) {
           auth.setCurrentUser(response.user);
           setUser(response.user);
-          handleNavigation(response.user);
+          setChecking(false);
         } else {
           throw new Error('Unauthenticated');
         }
@@ -50,24 +49,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         router.replace('/login');
       } finally {
         if (active) {
-          setChecking(false);
           setIsLoading(false);
-        }
-      }
-    }
-
-    function handleNavigation(currentUser: User) {
-      if (currentUser.onboardingComplete) {
-        if (pathname === '/onboarding') {
-          router.replace('/dashboard');
-        } else {
-          setChecking(false);
-        }
-      } else {
-        if (pathname === '/onboarding') {
-          setChecking(false);
-        } else {
-          router.replace('/onboarding');
         }
       }
     }
@@ -77,7 +59,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     if (cachedUser) {
       setUser(cachedUser);
-      handleNavigation(cachedUser);
+      setChecking(false);
       
       // Verify session integrity in the background
       api.get<{ user: User }>('/auth/me')
@@ -86,7 +68,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           if (response.user) {
             auth.setCurrentUser(response.user);
             setUser(response.user);
-            handleNavigation(response.user);
           } else {
             throw new Error('Session invalid');
           }
@@ -104,12 +85,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return () => {
       active = false;
     };
-  }, [mounted, user, pathname, router, setUser, setIsLoading]);
+  }, [mounted, user, router, setUser, setIsLoading]);
 
   if (!mounted || checking) {
     return (
-      <div className="min-h-screen bg-brand-charcoal flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-lime" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-green" />
       </div>
     );
   }

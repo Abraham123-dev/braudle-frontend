@@ -28,8 +28,8 @@ function AuthCallbackContent() {
             auth.setCurrentUser(response.user);
             setUser(response.user);
 
-            // Redirect directly to dashboard
-            router.replace('/dashboard');
+            // Redirect directly to home learning
+            router.replace('/home');
           } else {
             throw new Error('Failed to retrieve user details.');
           }
@@ -44,7 +44,7 @@ function AuthCallbackContent() {
       const localUser = auth.getCurrentUser();
       if (localUser) {
         setUser(localUser);
-        router.replace('/dashboard');
+        router.replace('/home');
       } else {
         router.replace('/login');
       }
