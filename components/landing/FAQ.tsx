@@ -16,7 +16,7 @@ export const FAQ = () => {
     },
     {
       question: "Is there a limit to how much I can study?",
-      answer: "The Free plan includes 2 active documents. Our Pro plan offers unlimited documents and priority processing for serious students."
+      answer: "On the free tier you can upload up to 2 PDFs and 5 images per day. Your AI tutor sessions and quizzes are unlimited — study as much as you want."
     },
     {
       question: "Can I use it for exam preparation?",

@@ -6,6 +6,8 @@
   --brand-green: #006B3F;
   --brand-lime: #CCFF00;
   --brand-forest: #013220;
+  --brand-charcoal: #1A1A1A;
+  --brand-yellow: #FFC527;
   scroll-behavior: smooth;
 }
 
@@ -13,6 +15,8 @@
   --color-brand-green: var(--brand-green);
   --color-brand-lime: var(--brand-lime);
   --color-brand-forest: var(--brand-forest);
+  --color-brand-charcoal: var(--brand-charcoal);
+  --color-brand-yellow: var(--brand-yellow);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-plus-jakarta);

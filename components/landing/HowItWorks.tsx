@@ -9,19 +9,19 @@ export const HowItWorks = () => {
     {
       icon: Upload,
       title: "Upload your materials",
-      description: "Upload PDFs, lecture audio, notes, or even images of your whiteboard. Braudle's AI ingests every format with precision.",
+      description: "Drop your PDFs, lecture slides, notes, or photos of your handwriting. Braudle safely stores everything and starts reading immediately.",
       color: "bg-brand-green/10 text-brand-green"
     },
     {
       icon: Cpu,
-      title: "Start 'Teach Mode'",
-      description: "Instead of reading a summary, your AI tutor explains concepts step-by-step. It pauses to ask you questions, ensuring you understand before moving on.",
+      title: "Your AI tutor studies them",
+      description: "In the background, your personal tutor reads every page, pulls out key topics, and builds a personalized lesson plan — ready before you are.",
       color: "bg-brand-lime/20 text-brand-forest"
     },
     {
       icon: GraduationCap,
-      title: "Conquer the Quiz",
-      description: "Test your knowledge with adaptive quizzes that target your weak spots. Get instant feedback and deep explanations for every answer.",
+      title: "Start learning your way",
+      description: "Choose how you want to study — Understand, Review, Practice, Prepare for exams, or just Ask Anything. Your tutor adapts to how you learn best.",
       color: "bg-brand-forest text-brand-lime"
     }
   ];

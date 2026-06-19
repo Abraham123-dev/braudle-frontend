@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 
 export const Footer = () => (
-  <footer className="pt-24 pb-12 px-8 max-w-7xl mx-auto border-t border-gray-100 mt-12 bg-[#F7F7F7]">
+  <footer className="pt-24 pb-12 px-8 max-w-7xl mx-auto border-t border-gray-100 mt-12 bg-gray-50">
     <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-24">
       {/* Branding Section */}
       <div className="md:col-span-5 space-y-8">
@@ -25,7 +25,6 @@ export const Footer = () => (
           {[
             { label: "About Us", href: "#" },
             { label: "How it works", href: "#how-it-works" },
-            { label: "Pricing", href: "#pricing" },
             { label: "FAQ", href: "#faq" }
           ].map(item => (
             <li key={item.label}>
