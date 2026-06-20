@@ -2,7 +2,7 @@
  * BRAUDLE Authentication Helpers
  */
 
-import { api } from './api';
+
 
 export interface User {
   id: string;
@@ -38,19 +38,24 @@ export const auth = {
   },
 
   async logout(): Promise<void> {
-    try {
-      // Clear HTTP-only session cookies on backend
-      await api.post('/auth/logout');
-    } catch (err) {
-      console.error('Failed to log out from backend:', err);
-    }
-    
-    // Clear client-side user cache
+    // Always clear client-side state first — never block on backend
     this.clearCurrentUser();
-    
-    // Redirect to login page
+
+    // Fire-and-forget: tell backend to revoke refresh token + clear httpOnly cookies.
+    // We don't await this — the user should be redirected immediately.
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).catch(() => {
+        // Swallow — logout must never fail from the user's perspective
+      });
+
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }
 };

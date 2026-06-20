@@ -19,10 +19,11 @@ export default function ProgressBar({ current, total, label }: ProgressBarProps)
       </div>
       <div className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
         <div
-          className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-500 ease-out dark:from-indigo-600 dark:to-indigo-700"
+          className="h-full bg-brand-green transition-all duration-500 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>
     </div>
   );
 }
+

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
-import { Loader2, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
 
 export default function LoginPage() {
   // Silent auth check - redirects to dashboard if already logged in
@@ -49,8 +49,24 @@ export default function LoginPage() {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen bg-brand-charcoal flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-lime" />
+      <div className="min-h-screen bg-brand-charcoal font-sans antialiased flex flex-col items-center lg:justify-center justify-start p-8 pt-24 lg:pt-8 animate-pulse select-none">
+        <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24">
+          <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-8">
+            <div className="space-y-3 w-full max-w-sm">
+              <div className="w-10 h-10 bg-white/5 rounded-lg mb-8 hidden lg:block" />
+              <div className="h-8 bg-white/10 w-2/3 rounded-full mx-auto lg:mx-0" />
+              <div className="h-4 bg-white/5 w-1/2 rounded-full mx-auto lg:mx-0" />
+            </div>
+            <div className="w-full max-w-sm space-y-5">
+              <div className="h-12 bg-white/5 rounded-full" />
+              <div className="h-px bg-white/10" />
+              <div className="h-12 bg-white/5 rounded-full" />
+            </div>
+          </div>
+          <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
+            <div className="w-full aspect-[4/5] max-w-sm rounded-[32px] bg-white/5" />
+          </div>
+        </main>
       </div>
     );
   }
@@ -180,14 +196,7 @@ export default function LoginPage() {
                     disabled={loading}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-green py-3 px-6 text-[14px] font-semibold text-white hover:bg-brand-green/80 transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Sending link...
-                      </>
-                    ) : (
-                      'Send Magic Link'
-                    )}
+                    {loading ? 'Sending link...' : 'Send Magic Link'}
                   </button>
                 </div>
 
@@ -217,7 +226,7 @@ export default function LoginPage() {
                 className="w-full h-full object-cover grayscale opacity-40"
               />
               <div className="absolute inset-0 bg-brand-green/30 mix-blend-multiply" />
-              <div className="absolute inset-0 bg-gradient-to-t from-brand-charcoal via-brand-charcoal/40 to-transparent" />
+              <div className="absolute inset-0 bg-brand-charcoal/60" />
             </div>
             
             <div className="relative z-20 space-y-6">

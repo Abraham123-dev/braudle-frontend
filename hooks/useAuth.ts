@@ -10,8 +10,19 @@ export function useAuth(requireAuth = true) {
   const { user, setUser, isLoading, setIsLoading } = useStore();
   const [initialized, setInitialized] = useState(false);
 
+  // 1. Initial auth check on mount/pathname change (does not re-run when Zustand user changes)
   useEffect(() => {
     let active = true;
+
+    const handleRedirect = (currentUser: User) => {
+      if (pathname === '/login') {
+        if (!currentUser.onboardingComplete) {
+          router.replace('/onboarding');
+        } else {
+          router.replace('/home');
+        }
+      }
+    };
 
     async function checkAuth() {
       if (!active) return;
@@ -23,11 +34,7 @@ export function useAuth(requireAuth = true) {
         if (response.user) {
           auth.setCurrentUser(response.user);
           setUser(response.user);
-
-          // Redirect to home if logged in on login page
-          if (pathname === '/login') {
-            router.replace('/home');
-          }
+          handleRedirect(response.user);
         } else {
           throw new Error('No user data returned');
         }
@@ -46,11 +53,14 @@ export function useAuth(requireAuth = true) {
       }
     }
 
+    const stateUser = useStore.getState().user;
     const localUser = auth.getCurrentUser();
-    if (!user) {
+
+    if (!stateUser) {
       if (localUser) {
         // Optimistically set, then verify in background
         setUser(localUser);
+        handleRedirect(localUser);
         checkAuth();
       } else {
         if (requireAuth) {
@@ -63,9 +73,7 @@ export function useAuth(requireAuth = true) {
               if (res.user) {
                 auth.setCurrentUser(res.user);
                 setUser(res.user);
-                if (pathname === '/login') {
-                  router.replace('/home');
-                }
+                handleRedirect(res.user);
               }
             })
             .catch(() => {})
@@ -78,15 +86,21 @@ export function useAuth(requireAuth = true) {
       }
     } else {
       setInitialized(true);
-      if (pathname === '/login') {
-        router.replace('/home');
-      }
+      handleRedirect(stateUser);
     }
 
     return () => {
       active = false;
     };
-  }, [user, setUser, setIsLoading, requireAuth, router, pathname]);
+  }, [setUser, setIsLoading, requireAuth, router, pathname]);
+
+  // 2. React to dynamic auth changes (e.g. logging out or session expiry)
+  useEffect(() => {
+    if (!user && requireAuth && initialized) {
+      router.replace('/login');
+    }
+  }, [user, requireAuth, initialized, router]);
 
   return { user, isLoading, initialized };
 }
+

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, User } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -28,8 +28,12 @@ function AuthCallbackContent() {
             auth.setCurrentUser(response.user);
             setUser(response.user);
 
-            // Redirect directly to home learning
-            router.replace('/home');
+            // Redirect correctly based on onboarding status
+            if (!response.user.onboardingComplete) {
+              router.replace('/onboarding');
+            } else {
+              router.replace('/home');
+            }
           } else {
             throw new Error('Failed to retrieve user details.');
           }
@@ -40,14 +44,39 @@ function AuthCallbackContent() {
       }
       verifyMagicLink();
     } else {
-      // If no token exists in query parameters, check local storage session cache
-      const localUser = auth.getCurrentUser();
-      if (localUser) {
-        setUser(localUser);
-        router.replace('/home');
-      } else {
-        router.replace('/login');
+      // If no token exists in query parameters (e.g. Google OAuth callback), verify session with backend
+      async function verifySession() {
+        try {
+          const response = await api.get<{ user: User }>('/auth/me');
+          
+          if (response.user) {
+            auth.setCurrentUser(response.user);
+            setUser(response.user);
+
+            if (!response.user.onboardingComplete) {
+              router.replace('/onboarding');
+            } else {
+              router.replace('/home');
+            }
+          } else {
+            throw new Error('No user data found');
+          }
+        } catch (err) {
+          // Fallback to local storage cached user if backend call fails
+          const localUser = auth.getCurrentUser();
+          if (localUser) {
+            setUser(localUser);
+            if (!localUser.onboardingComplete) {
+              router.replace('/onboarding');
+            } else {
+              router.replace('/home');
+            }
+          } else {
+            router.replace('/login');
+          }
+        }
       }
+      verifySession();
     }
   }, [searchParams, router, setUser]);
 
@@ -77,14 +106,23 @@ function AuthCallbackContent() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-brand-charcoal">
-      <div className="text-center flex flex-col items-center gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-brand-lime" />
-        <h2 className="text-lg font-semibold text-white">
-          {verifying ? 'Verifying magic link...' : 'Redirecting to your dashboard...'}
-        </h2>
-        <p className="text-xs text-gray-400">
-          Please wait while we establish your private tutor session.
+    <div className="flex min-h-screen flex-col items-center justify-center bg-brand-charcoal px-6">
+      <div className="max-w-md w-full text-center flex flex-col items-center gap-6 p-8 bg-brand-forest/20 border border-white/5 rounded-3xl shadow-2xl">
+        <div className="w-12 h-12 rounded-xl bg-brand-lime/10 flex items-center justify-center border border-brand-lime/20 animate-pulse">
+          <div className="w-4 h-4 rounded-full bg-brand-lime" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-white">
+            Welcome to Braudle
+          </h2>
+          <p className="text-sm text-gray-400 leading-relaxed animate-pulse">
+            {verifying 
+              ? 'Verifying your secure sign-in link...' 
+              : 'Directing you to your learning space...'}
+          </p>
+        </div>
+        <p className="text-xs text-white/30 font-medium">
+          Preparing your workspace
         </p>
       </div>
     </div>
@@ -95,8 +133,14 @@ export default function AuthCallbackPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center bg-brand-charcoal">
-          <Loader2 className="w-10 h-10 animate-spin text-brand-lime" />
+        <div className="flex min-h-screen flex-col items-center justify-center bg-brand-charcoal animate-pulse">
+          <div className="max-w-md w-full text-center flex flex-col items-center gap-6 p-8 bg-brand-forest/20 border border-white/5 rounded-3xl">
+            <div className="w-12 h-12 rounded-xl bg-brand-lime/10 flex items-center justify-center border border-brand-lime/20">
+              <div className="w-4 h-4 rounded-full bg-brand-lime" />
+            </div>
+            <div className="h-6 w-32 bg-white/10 rounded-full" />
+            <div className="h-4 w-48 bg-white/5 rounded-full" />
+          </div>
         </div>
       }
     >
@@ -104,4 +148,5 @@ export default function AuthCallbackPage() {
     </Suspense>
   );
 }
+
 

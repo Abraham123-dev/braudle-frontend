@@ -8,6 +8,7 @@
   --brand-forest: #013220;
   --brand-charcoal: #1A1A1A;
   --brand-yellow: #FFC527;
+  --font-plus-jakarta: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   scroll-behavior: smooth;
 }
 

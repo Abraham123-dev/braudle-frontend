@@ -85,7 +85,7 @@ export default function QuizQuestion({
             onChange={(e) => onSelectAnswer(e.target.value)}
             placeholder="Type your detailed explanation here..."
             rows={4}
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm focus:border-indigo-500 focus:bg-white focus:outline-none disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-indigo-600 dark:focus:bg-zinc-950"
+            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-base sm:text-sm focus:border-indigo-500 focus:bg-white focus:outline-none disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-indigo-600 dark:focus:bg-zinc-950"
           />
         </div>
       )}
