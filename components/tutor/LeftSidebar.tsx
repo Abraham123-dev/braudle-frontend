@@ -7,11 +7,12 @@ interface LeftSidebarProps {
   docTitle: string;
   topics: string[];
   onConceptClick: (concept: string) => void;
+  className?: string;
 }
 
-export default function LeftSidebar({ docTitle, topics, onConceptClick }: LeftSidebarProps) {
+export default function LeftSidebar({ docTitle, topics, onConceptClick, className }: LeftSidebarProps) {
   return (
-    <aside className="hidden lg:flex w-72 bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left">
+    <aside className={className || "hidden lg:flex w-72 bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left"}>
       <div className="space-y-8">
         
         {/* Sources list exactly like NotebookLM */}

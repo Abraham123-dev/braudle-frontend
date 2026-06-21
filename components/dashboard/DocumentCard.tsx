@@ -267,20 +267,13 @@ export default function DocumentCard({ doc, onStartSession, onDeleteSuccess }: D
 
       {/* Quick Launch Buttons (Only visible when ready) */}
       {isReady && (
-        <div className="grid grid-cols-2 gap-2.5 mt-5 pt-4 border-t border-gray-50/50">
+        <div className="mt-5 pt-4 border-t border-gray-50/50">
           <button
             type="button"
             onClick={() => onStartSession(doc.id || doc._id || '', 'teach')}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white transition-all cursor-pointer active:scale-[0.98] ${theme.btnClass}`}
+            className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white transition-all cursor-pointer active:scale-[0.98] ${theme.btnClass}`}
           >
             <BookOpen className="w-3.5 h-3.5" /> Study
-          </button>
-          <button
-            type="button"
-            onClick={() => onStartSession(doc.id || doc._id || '', 'quiz')}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border border-gray-200 text-brand-forest hover:bg-gray-50 transition-all cursor-pointer active:scale-[0.98]"
-          >
-            <Award className="w-3.5 h-3.5" /> Practice
           </button>
         </div>
       )}

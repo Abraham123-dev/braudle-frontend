@@ -1,112 +1,411 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import katex from 'katex';
 
 interface MarkdownRendererProps {
   content: string;
 }
 
-export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  if (!content) return null;
+// Sub-component to render LaTeX formulas safely with KaTeX
+export function MathRenderer({ formula, block = false }: { formula: string; block?: boolean }) {
+  const containerRef = useRef<HTMLSpanElement>(null);
 
-  // Split content by paragraphs or lines to structure
-  const lines = content.split('\n');
+  useEffect(() => {
+    if (containerRef.current) {
+      try {
+        katex.render(formula, containerRef.current, {
+          displayMode: block,
+          throwOnError: false,
+        });
+      } catch (err) {
+        console.error('KaTeX rendering error:', err);
+        containerRef.current.textContent = formula;
+      }
+    }
+  }, [formula, block]);
+
+  if (block) {
+    return (
+      <div className="my-6 overflow-x-auto select-all w-full py-2">
+        <span ref={containerRef} className="block text-[17px] text-brand-forest text-center" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-2 text-left w-full">
-      {lines.map((line, lineIdx) => {
-        const trimmed = line.trim();
-
-        // 1. Headers (###, ##, #)
-        if (trimmed.startsWith('###')) {
-          const text = trimmed.replace(/^###\s*/, '');
-          return (
-            <h4 key={lineIdx} className="text-sm font-bold text-brand-forest mt-4 mb-2">
-              {parseInlineMarkdown(text)}
-            </h4>
-          );
-        }
-        if (trimmed.startsWith('##')) {
-          const text = trimmed.replace(/^##\s*/, '');
-          return (
-            <h3 key={lineIdx} className="text-base font-bold text-brand-forest mt-5 mb-2">
-              {parseInlineMarkdown(text)}
-            </h3>
-          );
-        }
-        if (trimmed.startsWith('#')) {
-          const text = trimmed.replace(/^#\s*/, '');
-          return (
-            <h2 key={lineIdx} className="text-lg font-bold text-brand-forest mt-6 mb-3">
-              {parseInlineMarkdown(text)}
-            </h2>
-          );
-        }
-
-        // 2. Bullet list items (starting with •, -, *)
-        if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) {
-          const text = trimmed.replace(/^[•\-*]\s*/, '');
-          return (
-            <div key={lineIdx} className="flex items-start gap-2 pl-2 mt-1">
-              <span className="text-brand-green mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-brand-green" />
-              <p className="text-sm font-medium text-brand-forest leading-relaxed flex-1">
-                {parseInlineMarkdown(text)}
-              </p>
-            </div>
-          );
-        }
-
-        // 3. Numbered lists (1., 2., etc.)
-        const numMatch = trimmed.match(/^(\d+)\.\s*(.*)/);
-        if (numMatch) {
-          const num = numMatch[1];
-          const text = numMatch[2];
-          return (
-            <div key={lineIdx} className="flex items-start gap-2 pl-2 mt-1">
-              <span className="text-xs font-bold text-brand-green shrink-0 mt-0.5">{num}.</span>
-              <p className="text-sm font-medium text-brand-forest leading-relaxed flex-1">
-                {parseInlineMarkdown(text)}
-              </p>
-            </div>
-          );
-        }
-
-        // 4. Empty line
-        if (!trimmed) {
-          return <div key={lineIdx} className="h-2" />;
-        }
-
-        // 5. Standard paragraph
-        return (
-          <p key={lineIdx} className="text-sm font-medium text-brand-forest leading-relaxed">
-            {parseInlineMarkdown(trimmed)}
-          </p>
-        );
-      })}
-    </div>
+    <span 
+      ref={containerRef} 
+      className="inline text-brand-forest align-middle mx-0.5" 
+    />
   );
 }
 
-// Inline helper to parse bold text **text** and `code` inline
-function parseInlineMarkdown(text: string) {
-  // Regex to split by bold ** and inline code `
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+// Definitions for the parsed blocks
+type Block =
+  | { type: 'paragraph'; text: string }
+  | { type: 'heading'; level: number; text: string }
+  | { type: 'list'; ordered: boolean; items: string[] }
+  | { type: 'blockquote'; text: string }
+  | { type: 'code-block'; language: string; code: string }
+  | { type: 'math-block'; formula: string }
+  | { type: 'table'; headers: string[]; rows: string[][] };
+
+// Parsing function that scans markdown text line-by-line and groups them into blocks
+function parseMarkdown(content: string): Block[] {
+  const blocks: Block[] = [];
+  const lines = content.split('\n');
+  
+  let currentBlock: any = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // --- 1. CODE BLOCK ---
+    if (trimmed.startsWith('```')) {
+      if (currentBlock && currentBlock.type === 'code-block') {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      } else {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        const lang = trimmed.slice(3).trim();
+        currentBlock = { type: 'code-block', language: lang, code: '' };
+      }
+      continue;
+    }
+    
+    if (currentBlock && currentBlock.type === 'code-block') {
+      currentBlock.code += (currentBlock.code ? '\n' : '') + line;
+      continue;
+    }
+
+    // --- 2. MATH BLOCK ($$ ... $$) ---
+    // Handle single line math block: $$ formula $$
+    if (trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      blocks.push({ type: 'math-block', formula: trimmed.slice(2, -2).trim() });
+      continue;
+    }
+
+    // Handle multiline math block starting with $$
+    if (trimmed.startsWith('$$')) {
+      if (currentBlock && currentBlock.type === 'math-block') {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      } else {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        currentBlock = { type: 'math-block', formula: '' };
+      }
+      continue;
+    }
+    
+    if (currentBlock && currentBlock.type === 'math-block') {
+      if (trimmed.endsWith('$$')) {
+        currentBlock.formula += (currentBlock.formula ? '\n' : '') + line.slice(0, line.length - 2);
+        blocks.push(currentBlock);
+        currentBlock = null;
+      } else {
+        currentBlock.formula += (currentBlock.formula ? '\n' : '') + line;
+      }
+      continue;
+    }
+
+    // Handle standard LaTeX block brackets: \[ ... \]
+    if (trimmed.startsWith('\\[') && trimmed.endsWith('\\]')) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      blocks.push({ type: 'math-block', formula: trimmed.slice(2, -2).trim() });
+      continue;
+    }
+
+    // --- 3. TABLES (| cell | cell |) ---
+    if (trimmed.startsWith('|')) {
+      const isSeparator = /^\|[\s\-\|:]+\|$/.test(trimmed);
+      const cells = trimmed.split('|').slice(1, -1).map(c => c.trim());
+      
+      if (isSeparator) {
+        continue; // skip separator lines, but table stays open
+      }
+      
+      if (currentBlock && currentBlock.type === 'table') {
+        currentBlock.rows.push(cells);
+      } else {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        currentBlock = { type: 'table', headers: cells, rows: [] };
+      }
+      continue;
+    } else {
+      if (currentBlock && currentBlock.type === 'table') {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+    }
+
+    // --- 4. BLOCKQUOTE (> ...) ---
+    if (trimmed.startsWith('>')) {
+      const quoteText = line.replace(/^\s*>\s*/, '');
+      if (currentBlock && currentBlock.type === 'blockquote') {
+        currentBlock.text += '\n' + quoteText;
+      } else {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        currentBlock = { type: 'blockquote', text: quoteText };
+      }
+      continue;
+    } else {
+      if (currentBlock && currentBlock.type === 'blockquote') {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+    }
+
+    // --- 5. LISTS (Bullet & Numbered) ---
+    const bulletMatch = line.match(/^(\s*)([-*•+])\s+(.*)/);
+    if (bulletMatch) {
+      const text = bulletMatch[3];
+      if (currentBlock && currentBlock.type === 'list' && !currentBlock.ordered) {
+        currentBlock.items.push(text);
+      } else {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        currentBlock = { type: 'list', ordered: false, items: [text] };
+      }
+      continue;
+    }
+
+    const numberedMatch = line.match(/^(\s*)(\d+)[.)]\s+(.*)/);
+    if (numberedMatch) {
+      const text = numberedMatch[3];
+      if (currentBlock && currentBlock.type === 'list' && currentBlock.ordered) {
+        currentBlock.items.push(text);
+      } else {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        currentBlock = { type: 'list', ordered: true, items: [text] };
+      }
+      continue;
+    }
+
+    if (currentBlock && currentBlock.type === 'list') {
+      blocks.push(currentBlock);
+      currentBlock = null;
+    }
+
+    // --- 6. HEADINGS (# heading) ---
+    if (trimmed.startsWith('#')) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const text = headingMatch[2];
+        blocks.push({ type: 'heading', level, text });
+        continue;
+      }
+    }
+
+    // --- 7. EMPTY LINES ---
+    if (!trimmed) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      continue;
+    }
+
+    // --- 8. PARAGRAPHS ---
+    if (currentBlock && currentBlock.type === 'paragraph') {
+      currentBlock.text += '\n' + line;
+    } else {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+      }
+      currentBlock = { type: 'paragraph', text: line };
+    }
+  }
+
+  if (currentBlock) {
+    blocks.push(currentBlock);
+  }
+
+  return blocks;
+}
+
+// Inline content renderer: parses math, bold, and code inside text strings
+export function renderInlineContent(text: string): React.ReactNode {
+  if (!text) return '';
+
+  // Extract inline math: $...$ or \(...\)
+  const parts = text.split(/(\$(?!\s)(?:[^\$]+?)(?<!\s)\$|\\\(?:.+?\\\))/g);
 
   return parts.map((part, idx) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <strong key={idx} className="font-extrabold text-brand-forest">
-          {part.slice(2, -2)}
-        </strong>
-      );
+    if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
+      const formula = part.slice(1, -1);
+      return <MathRenderer key={`math-${idx}`} formula={formula} block={false} />;
     }
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return (
-        <code key={idx} className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-brand-green border border-gray-200/50">
-          {part.slice(1, -1)}
-        </code>
-      );
+    if (part.startsWith('\\(') && part.endsWith('\\)')) {
+      const formula = part.slice(2, -2);
+      return <MathRenderer key={`math-${idx}`} formula={formula} block={false} />;
     }
-    return part;
+
+    return parseInlineMarkdown(part, idx);
   });
+}
+
+// Helper for bold and monospace formatting
+function parseInlineMarkdown(text: string, parentKey: number) {
+  // Split by bold (**bold** or __bold__) and inline code (`code`)
+  const subParts = text.split(/(\*\*.*?\*\*|__.*?__|`.*?`)/g);
+
+  return (
+    <React.Fragment key={parentKey}>
+      {subParts.map((sub, idx) => {
+        if (sub.startsWith('**') && sub.endsWith('**')) {
+          return (
+            <strong key={idx} className="font-extrabold text-brand-forest">
+              {sub.slice(2, -2)}
+            </strong>
+          );
+        }
+        if (sub.startsWith('__') && sub.endsWith('__')) {
+          return (
+            <strong key={idx} className="font-extrabold text-brand-forest">
+              {sub.slice(2, -2)}
+            </strong>
+          );
+        }
+        if (sub.startsWith('`') && sub.endsWith('`')) {
+          return (
+            <code key={idx} className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-brand-green border border-zinc-200/50">
+              {sub.slice(1, -1)}
+            </code>
+          );
+        }
+        return sub;
+      })}
+    </React.Fragment>
+  );
+}
+
+export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
+  if (!content) return null;
+
+  const blocks = parseMarkdown(content);
+
+  return (
+    <div className="space-y-4 text-left w-full text-[15px] sm:text-[16px] leading-relaxed text-brand-forest/90 font-normal">
+      {blocks.map((block, idx) => {
+        switch (block.type) {
+          case 'heading': {
+            const hClass = 
+              block.level === 1 
+                ? 'text-2xl font-extrabold text-brand-forest mt-8 mb-4 border-b border-zinc-100 pb-2' 
+                : block.level === 2 
+                ? 'text-xl font-extrabold text-brand-forest mt-6 mb-3' 
+                : block.level === 3 
+                ? 'text-lg font-bold text-brand-forest mt-5 mb-2' 
+                : 'text-base font-bold text-brand-forest mt-4 mb-2';
+            const Tag = `h${Math.min(block.level, 4)}` as 'h1' | 'h2' | 'h3' | 'h4';
+            return (
+              <Tag key={idx} className={hClass}>
+                {renderInlineContent(block.text)}
+              </Tag>
+            );
+          }
+
+          case 'list': {
+            const ListTag = block.ordered ? 'ol' : 'ul';
+            return (
+              <ListTag key={idx} className="space-y-2.5 my-3 pl-1">
+                {block.items.map((item, itemIdx) => (
+                  <li key={itemIdx} className="flex items-start gap-2.5">
+                    {block.ordered ? (
+                      <span className="font-extrabold text-brand-green shrink-0 mt-0.5 text-sm w-5 text-right">
+                        {itemIdx + 1}.
+                      </span>
+                    ) : (
+                      <span className="text-brand-green mt-2.5 shrink-0 w-2.5 h-2.5 rounded-full bg-brand-green/80" />
+                    )}
+                    <span className="flex-1 leading-relaxed text-[15px] sm:text-[16px]">
+                      {renderInlineContent(item)}
+                    </span>
+                  </li>
+                ))}
+              </ListTag>
+            );
+          }
+
+          case 'blockquote':
+            return (
+              <blockquote key={idx} className="border-l-4 border-brand-green bg-brand-green/5 pl-4 pr-3 py-3 rounded-r-2xl italic my-4 text-brand-forest/90 text-[15px] sm:text-[16px] leading-relaxed">
+                {renderInlineContent(block.text)}
+              </blockquote>
+            );
+
+          case 'code-block':
+            return (
+              <pre key={idx} className="my-4 p-4 bg-zinc-900 text-zinc-100 rounded-2xl overflow-x-auto text-[13px] font-mono border border-zinc-800 leading-normal select-all">
+                <code>{block.code}</code>
+              </pre>
+            );
+
+          case 'math-block':
+            return <MathRenderer key={idx} formula={block.formula} block={true} />;
+
+          case 'table':
+            return (
+              <div key={idx} className="overflow-x-auto my-5 border border-zinc-150 rounded-2xl shadow-3xs">
+                <table className="min-w-full divide-y divide-zinc-200">
+                  <thead className="bg-zinc-50">
+                    <tr>
+                      {block.headers.map((h, hIdx) => (
+                        <th key={hIdx} className="px-5 py-3 text-left text-xs font-bold text-brand-forest uppercase tracking-wider">
+                          {renderInlineContent(h)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-zinc-100">
+                    {block.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-zinc-50/50 transition-colors">
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="px-5 py-3.5 text-[14px] sm:text-[15px] text-brand-forest">
+                            {renderInlineContent(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+
+          case 'paragraph':
+          default:
+            return (
+              <p key={idx} className="my-3 text-[15px] sm:text-[16px] leading-relaxed text-brand-forest/90 font-normal">
+                {renderInlineContent(block.text)}
+              </p>
+            );
+        }
+      })}
+    </div>
+  );
 }

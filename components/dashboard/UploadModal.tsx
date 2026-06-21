@@ -150,53 +150,43 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     setUploadProgress(10);
 
     try {
-      // 1. Get presigned PUT URL from our backend
-      const presignedRes = await api.post<any>('/documents/presigned-url', {
-        title: title.trim(),
-        subject: subject.trim() || 'General',
-        filename: file.name,
-        contentType: file.type
-      });
-
-      const { documentId, uploadUrl } = presignedRes;
-
-      if (!uploadUrl || !documentId) {
-        throw new Error('Incomplete upload slot allocation from server.');
-      }
+      // 1. Prepare FormData
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title.trim());
+      formData.append('subject', subject.trim() || 'General');
 
       setUploadProgress(40);
 
-      // 2. Perform direct binary PUT upload to R2
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type
-        }
+      // 2. Perform upload via backend server (bypassing client CORS limitations)
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const uploadResponse = await fetch(`${apiBaseUrl}/documents/upload`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
       });
 
       if (!uploadResponse.ok) {
-        throw new Error('Direct file transfer to secure storage failed.');
+        let errorData;
+        try {
+          errorData = await uploadResponse.json();
+        } catch {}
+        throw new Error(errorData?.message || 'Direct upload via server failed.');
       }
 
-      setUploadProgress(80);
+      const { documentId } = await uploadResponse.json();
 
-      // 3. Confirm upload with our backend to trigger ingestion pipeline
-      await api.post('/documents/confirm-upload', { documentId });
+      if (!documentId) {
+        throw new Error('Incomplete upload confirmation from server.');
+      }
 
       setUploadProgress(100);
       setUploading(false);
 
-      // 4. Enter backend analysis phase (await document processing)
+      // 3. Create the session immediately (polling happens inside the session workspace)
       setAnalyzing(true);
-      setAnalysisStage('Analyzing document structure...');
-      setAnalysisProgress(5);
-
-      await pollIngestionStatus(documentId);
-
-      // 5. Analysis is ready! Create a session automatically.
-      setAnalysisStage('Preparing study space...');
-      setAnalysisProgress(95);
+      setAnalysisStage('Initializing Workspace...');
+      setAnalysisProgress(50);
 
       const sessionRes = await api.post<any>('/sessions/start', {
         documentId,

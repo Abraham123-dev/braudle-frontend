@@ -15,6 +15,7 @@ export interface Question {
   question: string;
   type: 'mcq' | 'theory' | string;
   options?: string[];
+  answer?: string;
   explanation?: string;
   studentAnswer?: string;
   isCorrect?: boolean;
@@ -29,6 +30,7 @@ export interface Quiz {
   totalQuestions: number;
   questions: Question[];
   score?: number;
+  isExam?: boolean;
 }
 
 export function useSession(sessionId: string) {
@@ -39,8 +41,11 @@ export function useSession(sessionId: string) {
   // Initial load states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isProcessingDoc, setIsProcessingDoc] = useState(false);
+  const [processingStage, setProcessingStage] = useState('');
   
   // Document metadata
+  const [documentId, setDocumentId] = useState('');
   const [docTitle, setDocTitle] = useState('Study Source');
   const [topics, setTopics] = useState<string[]>([]);
   const [docSummary, setDocSummary] = useState('');
@@ -59,6 +64,19 @@ export function useSession(sessionId: string) {
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [quizResult, setQuizResult] = useState<any>(null);
   const [showRightPane, setShowRightPane] = useState(false);
+  const [sessionQuizzes, setSessionQuizzes] = useState<any[]>([]);
+
+  const fetchSessionQuizzes = async () => {
+    if (!sessionId) return;
+    try {
+      const res = await api.get<any>(`/quiz/session/${sessionId}`);
+      if (res.quizzes) {
+        setSessionQuizzes(res.quizzes);
+      }
+    } catch (e) {
+      console.error('Error fetching session quizzes:', e);
+    }
+  };
 
   // Time-aware greeting
   const [timeGreeting, setTimeGreeting] = useState('Ready to study');
@@ -89,6 +107,23 @@ export function useSession(sessionId: string) {
 
       if (sessionRes.session) {
         setActiveMode(sessionRes.session.mode || 'understand');
+        
+        // Track documentId
+        const doc = sessionRes.session.documentId;
+        if (doc) {
+          setDocumentId(doc._id || doc);
+        }
+        
+        // Check if document is still processing
+        if (doc && doc.processingStatus !== 'ready') {
+          setIsProcessingDoc(true);
+          setProcessingStage(doc.processingStage || 'Initializing Workspace...');
+          setDocTitle(doc.title || 'Study Source');
+          setLoading(false);
+          return;
+        } else {
+          setIsProcessingDoc(false);
+        }
       }
 
       // 2. Fetch welcome context
@@ -112,6 +147,8 @@ export function useSession(sessionId: string) {
       } else {
         setMessages(historyMessages);
       }
+      // Fetch session quizzes
+      await fetchSessionQuizzes();
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to load session study space.');
@@ -121,10 +158,55 @@ export function useSession(sessionId: string) {
   };
 
   useEffect(() => {
-    if (sessionId) {
-      loadSessionData();
-    }
-  }, [sessionId]);
+    if (!sessionId) return;
+
+    loadSessionData();
+
+    const timer = setInterval(async () => {
+      if (isProcessingDoc) {
+        try {
+          const res = await api.get<any>(`/sessions/${sessionId}`);
+          if (res.session && res.session.documentId) {
+            const status = res.session.documentId.processingStatus;
+            const stage = res.session.documentId.processingStage;
+            setProcessingStage(stage || 'Analyzing...');
+            if (status === 'ready') {
+              setIsProcessingDoc(false);
+              // Reload fully once document is ready
+              const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
+              const historyMsgs = sessionRes.messages || [];
+              setMessages(historyMsgs);
+              
+              const welcomeRes = await api.get<any>(`/sessions/${sessionId}/welcome`);
+              if (welcomeRes.welcome) {
+                setDocTitle(welcomeRes.welcome.documentTitle || 'Study Source');
+                setTopics(welcomeRes.welcome.topics || []);
+                setDocSummary(welcomeRes.welcome.summary || '');
+                
+                const welcomeMsg = welcomeRes.welcome.message;
+                if (welcomeMsg && historyMsgs.length === 0) {
+                  const welcomeMsgObj = {
+                    role: 'assistant' as const,
+                    content: welcomeMsg,
+                    timestamp: new Date().toISOString()
+                  };
+                  setMessages([welcomeMsgObj]);
+                } else {
+                  setMessages(historyMsgs);
+                }
+              } else {
+                setMessages(historyMsgs);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error polling status:', e);
+        }
+      }
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [sessionId, isProcessingDoc]);
 
   const triggerTutorStream = async (messageText: string) => {
     setIsStreaming(true);
@@ -226,7 +308,7 @@ export function useSession(sessionId: string) {
     }
   };
 
-  const handleGenerateQuiz = async () => {
+  const handleGenerateQuiz = async (format?: string, numQuestions?: number, instructions?: string, isExam?: boolean) => {
     setLoadingQuiz(true);
     setQuizResult(null);
     setQuiz(null);
@@ -234,9 +316,24 @@ export function useSession(sessionId: string) {
     setShowRightPane(true);
 
     try {
-      const response = await api.post<any>('/quiz/generate', { sessionId });
+      let response;
+      if (format) {
+        response = await api.post<any>('/quiz/custom', {
+          documentId,
+          sessionId,
+          format,
+          numQuestions: numQuestions || 15,
+          instructions,
+          difficulty: 'medium',
+          isExam: !!isExam
+        });
+      } else {
+        response = await api.post<any>('/quiz/generate', { sessionId });
+      }
+
       if (response.quiz) {
         setQuiz(response.quiz);
+        await fetchSessionQuizzes();
       } else {
         throw new Error('No quiz payload returned.');
       }
@@ -271,6 +368,7 @@ export function useSession(sessionId: string) {
         ...prev, 
         { role: 'system', content: `Practice test completed! Scored ${result.score}%. View detailed answers in the sidebar.` }
       ]);
+      await fetchSessionQuizzes();
     } catch (err: any) {
       alert(`Grading failed: ${err.message}`);
     } finally {
@@ -289,9 +387,53 @@ export function useSession(sessionId: string) {
     }
   };
 
+  const handleGradeQuestion = async (questionId: string, answer: string) => {
+    if (!quiz) return null;
+    try {
+      const response = await api.post<any>(`/quiz/${quiz._id}/grade-question`, {
+        questionId,
+        answer
+      });
+      
+      // Update local quiz state with the graded question
+      setQuiz(prevQuiz => {
+        if (!prevQuiz) return null;
+        const updatedQuestions = prevQuiz.questions.map(q => {
+          if (q._id === questionId) {
+            return {
+              ...q,
+              studentAnswer: answer,
+              isCorrect: response.isCorrect,
+              feedback: response.feedback,
+              explanation: response.explanation
+            };
+          }
+          return q;
+        });
+
+        return {
+          ...prevQuiz,
+          score: response.quizScore,
+          questions: updatedQuestions
+        };
+      });
+
+      // Reload history list
+      await fetchSessionQuizzes();
+      
+      return response;
+    } catch (err: any) {
+      alert(`Grading failed: ${err.message}`);
+      return null;
+    }
+  };
+
   return {
     loading,
     error,
+    isProcessingDoc,
+    processingStage,
+    documentId,
     docTitle,
     topics,
     docSummary,
@@ -303,17 +445,22 @@ export function useSession(sessionId: string) {
     streamingContent,
     timeGreeting,
     quiz,
+    setQuiz,
     selectedAnswers,
     setSelectedAnswers,
     loadingQuiz,
     submittingQuiz,
     quizResult,
+    setQuizResult,
     showRightPane,
     setShowRightPane,
     handleSendMessage,
     handleModeChange,
     handleGenerateQuiz,
     handleQuizSubmit,
-    handleFinishSession
+    handleFinishSession,
+    handleGradeQuestion,
+    sessionQuizzes,
+    fetchSessionQuizzes
   };
 }

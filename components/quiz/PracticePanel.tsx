@@ -1,8 +1,12 @@
-'use client';
-
-import React from 'react';
-import { Award, ChevronRight, AlertCircle, FileQuestion } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Award, ChevronRight, AlertCircle, FileQuestion, ChevronLeft, Loader2 } from 'lucide-react';
 import { Quiz, Question } from '@/hooks/useSession';
+import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
+
+const cleanOptionText = (text: string) => {
+  if (!text) return '';
+  return text.replace(/^[a-zA-Z][\.\)]\s*/, '');
+};
 
 interface PracticePanelProps {
   quiz: Quiz | null;
@@ -12,9 +16,12 @@ interface PracticePanelProps {
   submittingQuiz: boolean;
   quizResult: any;
   onClose: () => void;
-  onGenerateQuiz: () => void;
+  onGenerateQuiz: (format?: string, numQuestions?: number, instructions?: string, isExam?: boolean) => void;
   onSubmitQuiz: (e: React.FormEvent) => void;
   isEmbed?: boolean;
+  isExam?: boolean;
+  onGradeQuestion?: (questionId: string, answer: string) => Promise<any>;
+  onExplainQuestion?: (question: any, studentAnswer: string, correctAnswer: string) => void;
 }
 
 export default function PracticePanel({
@@ -28,19 +35,140 @@ export default function PracticePanel({
   onGenerateQuiz,
   onSubmitQuiz,
   isEmbed = false,
+  isExam = false,
+  onGradeQuestion,
+  onExplainQuestion,
 }: PracticePanelProps) {
+  const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>('mixed');
+  const [numQuestions, setNumQuestions] = useState<number>(15);
+  const [instructions, setInstructions] = useState<string>('');
+
+  // Pagination index
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(0);
+  
+  // Real-time graded questions cache
+  const [gradedQuestions, setGradedQuestions] = useState<Record<string, {
+    isCorrect: boolean;
+    feedback: string;
+    correctAnswer: string;
+    explanation: string;
+  }>>({});
+
+  // Local grading status indicators
+  const [isGradingTheory, setIsGradingTheory] = useState<boolean>(false);
+  
+  // Custom theory input answer
+  const [theoryAnswers, setTheoryAnswers] = useState<Record<string, string>>({});
+
+  // Hint collapsible state
+  const [isHintOpen, setIsHintOpen] = useState<boolean>(false);
+
+  // Sync state with quiz when it loads or changes
+  useEffect(() => {
+    if (quiz) {
+      const graded: typeof gradedQuestions = {};
+      const selectAns: typeof selectedAnswers = {};
+      const theoryAns: Record<string, string> = {};
+
+      quiz.questions.forEach(q => {
+        if (q.studentAnswer) {
+          selectAns[q._id] = q.studentAnswer;
+          theoryAns[q._id] = q.studentAnswer;
+          graded[q._id] = {
+            isCorrect: !!q.isCorrect,
+            feedback: q.feedback || '',
+            correctAnswer: q.answer || '',
+            explanation: q.explanation || ''
+          };
+        }
+      });
+
+      setGradedQuestions(graded);
+      setSelectedAnswers(selectAns);
+      setTheoryAnswers(theoryAns);
+      setCurrentQuestionIdx(0);
+      setIsHintOpen(false);
+    } else {
+      setGradedQuestions({});
+      setSelectedAnswers({});
+      setTheoryAnswers({});
+      setCurrentQuestionIdx(0);
+      setIsHintOpen(false);
+    }
+  }, [quiz, setSelectedAnswers]);
+
+  // Handle MCQ/True-False selection and instant grade
+  const handleSelectOption = async (questionId: string, option: string) => {
+    if (gradedQuestions[questionId] || !onGradeQuestion) return;
+    
+    // Set immediate local selected answer
+    setSelectedAnswers(prev => ({ ...prev, [questionId]: option }));
+    
+    // Call backend grade endpoint
+    const res = await onGradeQuestion(questionId, option);
+    if (res) {
+      setGradedQuestions(prev => ({
+        ...prev,
+        [questionId]: {
+          isCorrect: res.isCorrect,
+          feedback: res.feedback,
+          correctAnswer: res.correctAnswer,
+          explanation: res.explanation
+        }
+      }));
+    }
+  };
+
+  // Handle Theory response instant grade submit
+  const handleSubmitTheoryAnswer = async (e: React.FormEvent, questionId: string) => {
+    e.preventDefault();
+    const answerText = theoryAnswers[questionId]?.trim();
+    if (!answerText || gradedQuestions[questionId] || !onGradeQuestion || isGradingTheory) return;
+
+    setIsGradingTheory(true);
+    // Set local selected answer
+    setSelectedAnswers(prev => ({ ...prev, [questionId]: answerText }));
+    
+    const res = await onGradeQuestion(questionId, answerText);
+    if (res) {
+      setGradedQuestions(prev => ({
+        ...prev,
+        [questionId]: {
+          isCorrect: res.isCorrect,
+          feedback: res.feedback,
+          correctAnswer: res.correctAnswer,
+          explanation: res.explanation
+        }
+      }));
+    }
+    setIsGradingTheory(false);
+  };
+
+  // Make sure numQuestions doesn't exceed 15 for exam when toggled
+  useEffect(() => {
+    if (isExam && numQuestions > 15) {
+      setNumQuestions(15);
+    }
+  }, [isExam, numQuestions]);
+
+  // Calculate correct question count
+  const correctCount = Object.values(gradedQuestions).filter(g => g.isCorrect).length;
+
   const content = (
-    <>
+    <div className="flex flex-col h-full justify-between">
+      
       {/* Panel Top Nav Bar (Only shown when not embedded) */}
       {!isEmbed && (
-        <div className="flex items-center justify-between pb-4 border-b border-gray-50 mb-6">
+        <div className="flex items-center justify-between pb-4 border-b border-gray-50 mb-6 shrink-0">
           <div className="flex items-center gap-2">
             <FileQuestion className="w-4 h-4 text-brand-green" />
-            <span className="font-bold text-sm text-brand-forest">Practice Questions</span>
+            <span className="font-bold text-sm text-brand-forest">
+              {isExam ? 'Exam Simulation' : 'Practice Questions'}
+            </span>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-xl border border-gray-100 text-gray-400 hover:text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
+            className="p-1.5 rounded-xl border border-gray-150 text-gray-400 hover:text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -48,151 +176,365 @@ export default function PracticePanel({
       )}
 
       {loadingQuiz ? (
-        <div className="flex-1 flex flex-col justify-between h-full space-y-6 animate-pulse select-none">
-          <div className="space-y-6 text-left">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="space-y-3">
-                <div className="h-3 w-28 bg-gray-100 rounded-full" />
-                <div className="h-4 w-5/6 bg-gray-100 rounded-full" />
-                <div className="space-y-2">
-                  <div className="h-10 bg-gray-50 border border-gray-100 rounded-xl" />
-                  <div className="h-10 bg-gray-50 border border-gray-100 rounded-xl" />
-                </div>
-              </div>
-            ))}
+        <div className="flex-1 flex flex-col justify-center items-center h-full space-y-4 py-12 select-none text-center">
+          <div className="relative w-14 h-14 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-4 border-zinc-100 border-t-brand-green animate-spin" />
+            <FileQuestion className="w-5 h-5 text-brand-green animate-pulse" />
           </div>
-          <div className="h-11 bg-gray-100 rounded-xl mt-4" />
-        </div>
-      ) : quizResult ? (
-        /* Graded Quiz Result Card */
-        <div className="flex-1 flex flex-col justify-between h-full space-y-6 overflow-y-auto pr-1">
-          <div className="space-y-6">
-            <div className="p-5 bg-brand-green/5 border border-brand-green/10 rounded-2xl text-center space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green block">
-                Grading Result
-              </span>
-              <h4 className="text-3xl font-black text-brand-forest">
-                {quizResult.score}%
-              </h4>
-              <p className="text-xs text-gray-400 font-medium">
-                {quizResult.newLevel ? `Advanced to ${quizResult.newLevel.toUpperCase()} level!` : 'Test completed successfully.'}
-              </p>
-            </div>
-
-            {/* Individual question feedback cards */}
-            <div className="space-y-4">
-              {(quizResult.quiz?.questions || []).map((q: Question, idx: number) => (
-                <div key={q._id} className="p-4 border border-gray-100 rounded-2xl space-y-2 bg-gray-50/20">
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-[10px] font-bold text-gray-400">
-                      Question {idx + 1}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                      q.isCorrect 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : 'bg-rose-50 text-rose-700'
-                    }`}>
-                      {q.isCorrect ? 'Correct' : 'Incorrect'}
-                    </span>
-                  </div>
-                  <h5 className="font-bold text-xs text-brand-forest">{q.question}</h5>
-                  <p className="text-[11px] text-gray-500">
-                    Your answer: <strong className="text-brand-forest font-semibold">{q.studentAnswer}</strong>
-                  </p>
-                  {!q.isCorrect && q.options && (
-                    <p className="text-[11px] text-emerald-600">
-                      Correct answer: <strong className="font-semibold">{q.options[0]}</strong>
-                    </p>
-                  )}
-                  {q.feedback && (
-                    <p className="text-[10px] text-brand-forest/60 italic pt-1 border-t border-gray-100/50 leading-relaxed font-normal">
-                      {q.feedback}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+          <div className="space-y-1">
+            <h5 className="font-extrabold text-sm text-brand-forest">
+              {isExam ? 'Generating Exam Simulation' : 'Generating Practice Arena'}
+            </h5>
+            <p className="text-[10px] text-gray-400 max-w-[200px] leading-relaxed">
+              Analyzing notes content & crafting custom pedagogical questions...
+            </p>
           </div>
-
-          <button
-            onClick={onGenerateQuiz}
-            className="w-full py-3 bg-brand-green text-white rounded-xl text-xs font-bold hover:bg-brand-green/90 transition-all cursor-pointer mt-4"
-          >
-            Take another quiz
-          </button>
         </div>
       ) : quiz ? (
-        /* Render Active Practice Quiz to answer */
-        <form onSubmit={onSubmitQuiz} className="flex-1 flex flex-col justify-between h-full space-y-6 overflow-y-auto pr-1">
-          <div className="space-y-6">
-            {quiz.questions.map((q, idx) => (
-              <div key={q._id} className="space-y-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green">
-                  Question {idx + 1} of {quiz.totalQuestions}
-                </span>
-                <h4 className="font-bold text-sm text-brand-forest leading-snug">
-                  {q.question}
-                </h4>
+        /* Render Active Practice Quiz - Paginated (one question at a time) */
+        <div className="flex-1 flex flex-col justify-between h-full min-h-0">
+          
+          {/* Header Progress Info */}
+          <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-3 border-b border-zinc-100 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-green">
+                {quiz.isExam ? 'EXAM' : 'PRACTICE'}
+              </span>
+              <span>•</span>
+              <span>Question {currentQuestionIdx + 1} of {quiz.totalQuestions}</span>
+            </div>
+            <span className="text-brand-green font-extrabold bg-brand-green/5 px-2.5 py-0.5 rounded-full">
+              Score: {correctCount} / {quiz.totalQuestions} Correct
+            </span>
+          </div>
 
-                {/* Multiple choice option buttons */}
-                {q.options && q.options.length > 0 ? (
-                  <div className="space-y-2">
-                    {q.options.map((option) => {
-                      const isSelected = selectedAnswers[q._id] === option;
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setSelectedAnswers(prev => ({ ...prev, [q._id]: option }))}
-                          className={`w-full p-3 rounded-xl border text-left text-xs font-medium transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-brand-green bg-brand-green/5'
-                              : 'border-gray-100 hover:border-gray-200 bg-white'
-                          }`}
-                        >
-                          {option}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  /* Subjective theory answer input box */
-                  <textarea
-                    required
-                    value={selectedAnswers[q._id] || ''}
-                    onChange={(e) => setSelectedAnswers(prev => ({ ...prev, [q._id]: e.target.value }))}
-                    placeholder="Write your explanation here..."
-                    className="w-full h-20 rounded-xl border border-gray-200 bg-gray-50/50 p-3.5 text-base sm:text-xs font-medium text-brand-forest focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-                  />
-                )}
+          {/* Core Question Layout (Scrollable middle container) */}
+          <div className="flex-1 overflow-y-auto py-5 space-y-5 text-left min-h-0 pr-1">
+            {(() => {
+              const q = quiz.questions[currentQuestionIdx];
+              if (!q) return null;
+              
+              const gradeInfo = gradedQuestions[q._id];
+              const hasBeenGraded = !!gradeInfo;
+              
+              return (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  
+                  {/* Question Text */}
+                  <h4 className="font-extrabold text-[17px] sm:text-xl text-brand-forest leading-relaxed">
+                    {renderInlineContent(q.question)}
+                  </h4>
+
+                  {/* MCQ Options / Theory inputs */}
+                  {q.options && q.options.length > 0 ? (
+                    <div className="space-y-3">
+                      {q.options.map((option, idx) => {
+                        const isSelected = selectedAnswers[q._id] === option;
+                        const isCorrectAnswer = gradeInfo?.correctAnswer === option || q.answer === option;
+
+                        const optionText = cleanOptionText(option);
+                        const letter = String.fromCharCode(65 + idx); // A, B, C, D...
+
+                        let cardStyle = 'border-gray-150 bg-white text-brand-forest hover:border-zinc-300';
+                        if (hasBeenGraded) {
+                          if (isCorrectAnswer) {
+                            cardStyle = 'bg-[#E6F4EA] border-[#34A853]/45 text-[#137333] border-2';
+                          } else if (isSelected) {
+                            cardStyle = 'bg-[#FCE8E6] border-[#D93025]/45 text-[#C5221F] border-2';
+                          } else {
+                            cardStyle = 'border-gray-150 bg-white text-gray-300 opacity-60 pointer-events-none';
+                          }
+                        } else if (isSelected) {
+                          cardStyle = 'border-brand-green bg-brand-green/5 text-brand-green font-semibold';
+                        }
+
+                        return (
+                          <div
+                            key={option}
+                            onClick={() => handleSelectOption(q._id, option)}
+                            className={`w-full p-4 rounded-2xl border text-left text-sm sm:text-base font-semibold transition-all cursor-pointer shadow-3xs ${cardStyle}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {/* Option Prefix Letter */}
+                              <span className="font-extrabold uppercase shrink-0 mt-0.5 opacity-60">
+                                {letter}.
+                              </span>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div>{renderInlineContent(optionText)}</div>
+                                
+                                {/* Right Answer explanation box nested inside correct option card */}
+                                {hasBeenGraded && isCorrectAnswer && (
+                                  <div className="mt-3 pt-3 border-t border-[#34A853]/15 text-xs sm:text-sm text-[#137333]/90 font-medium leading-relaxed animate-in fade-in duration-200">
+                                    <div className="font-extrabold mb-1">✓ Right answer</div>
+                                    {renderInlineContent(gradeInfo.explanation || q.explanation || '')}
+                                  </div>
+                                )}
+
+                                {/* Not Quite feedback box nested inside incorrect option card */}
+                                {hasBeenGraded && isSelected && !isCorrectAnswer && (
+                                  <div className="mt-3 pt-3 border-t border-[#D93025]/15 text-xs sm:text-sm text-[#C5221F]/90 font-medium leading-relaxed animate-in fade-in duration-200">
+                                    <div className="font-extrabold mb-1">✕ Not quite</div>
+                                    {renderInlineContent(gradeInfo.feedback || '')}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Subjective theory answer input box */
+                    <form onSubmit={(e) => handleSubmitTheoryAnswer(e, q._id)} className="space-y-4">
+                      {hasBeenGraded ? (
+                        <div className="space-y-4">
+                          {/* Student Answer */}
+                          <div className="p-4 border border-zinc-200 rounded-2xl bg-zinc-50 text-sm font-medium text-brand-forest">
+                            <span className="text-[10px] font-extrabold text-gray-400 block mb-1.5 uppercase">Your Response:</span>
+                            <p>{theoryAnswers[q._id] || ''}</p>
+                          </div>
+
+                          {/* Evaluation Card */}
+                          <div className={`p-4 border rounded-2xl text-sm sm:text-base font-medium leading-relaxed shadow-3xs ${
+                            gradeInfo.isCorrect 
+                              ? 'bg-[#E6F4EA] border-[#34A853]/45 text-[#137333]' 
+                              : 'bg-[#FCE8E6] border-[#D93025]/45 text-[#C5221F]'
+                          }`}>
+                            <div className="font-extrabold mb-1">
+                              {gradeInfo.isCorrect ? '✓ Right answer' : '✕ Not quite'}
+                            </div>
+                            <p className="mt-1">{gradeInfo.feedback}</p>
+                            {!gradeInfo.isCorrect && gradeInfo.correctAnswer && (
+                              <div className="mt-2.5 pt-2.5 border-t border-[#D93025]/15">
+                                <span className="font-extrabold text-[10px] uppercase block mb-1">Expected Answer:</span>
+                                <p className="font-normal opacity-90">{gradeInfo.correctAnswer}</p>
+                              </div>
+                            )}
+                            {gradeInfo.explanation && (
+                              <div className={`mt-2.5 pt-2.5 border-t ${
+                                gradeInfo.isCorrect ? 'border-[#34A853]/15' : 'border-[#D93025]/15'
+                              }`}>
+                                <span className="font-extrabold text-[10px] uppercase block mb-1">Explanation:</span>
+                                <p className="font-normal opacity-90">{gradeInfo.explanation}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3.5">
+                          <textarea
+                            required
+                            disabled={isGradingTheory}
+                            value={theoryAnswers[q._id] || ''}
+                            onChange={(e) => setTheoryAnswers(prev => ({ ...prev, [q._id]: e.target.value }))}
+                            placeholder="Write your explanation here..."
+                            className="w-full h-28 rounded-2xl border border-gray-200 bg-gray-50/50 p-4 text-sm sm:text-base font-medium text-brand-forest focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all disabled:opacity-65"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isGradingTheory || !theoryAnswers[q._id]?.trim()}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-brand-green hover:bg-brand-green/90 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs active:scale-[0.98]"
+                          >
+                            {isGradingTheory ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Evaluating Answer...</span>
+                              </>
+                            ) : (
+                              <span>Submit Answer</span>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </form>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Sticky Bottom Actions Container: Collapse Hint & Pagination Controls */}
+          <div className="border-t border-zinc-100 pt-4 flex flex-col gap-3 shrink-0">
+            <div className="flex items-center justify-between">
+              {/* Left Side: Hint (if not graded) or Explain (if graded) */}
+              <div>
+                {(() => {
+                  const q = quiz.questions[currentQuestionIdx];
+                  if (!q) return null;
+                  const gradeInfo = gradedQuestions[q._id];
+                  const hasBeenGraded = !!gradeInfo;
+
+                  if (hasBeenGraded) {
+                    return onExplainQuestion ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const studentAns = selectedAnswers[q._id] || theoryAnswers[q._id] || '';
+                          onExplainQuestion(q, studentAns, gradeInfo.correctAnswer || q.answer || '');
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-[11px] font-bold text-gray-600 transition-all cursor-pointer shadow-3xs"
+                      >
+                        <svg className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span>Explain</span>
+                      </button>
+                    ) : null;
+                  }
+
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setIsHintOpen(!isHintOpen)}
+                      className="flex items-center gap-1 text-[11px] font-black text-gray-400 hover:text-brand-forest transition-colors cursor-pointer select-none uppercase tracking-wider animate-in fade-in"
+                    >
+                      <span>Hint</span>
+                      <svg className={`w-3.5 h-3.5 transition-transform ${isHintOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                  );
+                })()}
               </div>
-            ))}
+
+              {/* Right Side: Navigation Buttons */}
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  disabled={currentQuestionIdx === 0}
+                  onClick={() => {
+                    setIsHintOpen(false);
+                    setCurrentQuestionIdx(prev => Math.max(0, prev - 1));
+                  }}
+                  className="px-5 py-2.5 text-xs font-bold border border-zinc-200 hover:border-zinc-300 text-zinc-600 bg-white rounded-full transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-[0.98]"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={currentQuestionIdx === quiz.questions.length - 1}
+                  onClick={() => {
+                    setIsHintOpen(false);
+                    setCurrentQuestionIdx(prev => Math.min(quiz.questions.length - 1, prev + 1));
+                  }}
+                  className="px-6 py-2.5 text-xs font-extrabold bg-[#1a73e8] hover:bg-[#1557b0] text-white rounded-full transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed select-none shadow-3xs active:scale-[0.98]"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            {/* Hint dropdown under the actions bar */}
+            {isHintOpen && !gradedQuestions[quiz.questions[currentQuestionIdx]?._id] && (
+              <div className="p-3.5 bg-zinc-50 border border-zinc-150/40 rounded-xl text-xs sm:text-sm text-zinc-500 font-medium leading-relaxed max-w-sm animate-in fade-in duration-200 text-left">
+                💡 Focus on the concepts of <strong className="text-zinc-600 font-semibold">{quiz.questions[currentQuestionIdx]?.topic}</strong>. Review how this fits into the document summary equations.
+              </div>
+            )}
+          </div>
+
+        </div>
+      ) : (
+        /* Setup Form Configuration state */
+        <div className="flex-1 flex flex-col justify-start text-left space-y-6 animate-in fade-in duration-200">
+          <div className="space-y-2">
+            <h4 className="font-extrabold text-base text-brand-forest">
+              {isExam ? 'Setup Exam Simulator' : 'Setup Practice Arena'}
+            </h4>
+            <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+              Tailor the AI Tutor questions to test your learning style and goals.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {/* Format choice */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60">
+                Question Format
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { id: 'objective', label: '🔘 Objective / MCQ', desc: 'Rigorous option-based recall and concept testing.' },
+                  { id: 'theory', label: '✍️ Theory / Subjective', desc: 'Detailed conceptual questions requiring written essays.' },
+                  { id: 'mixed', label: '🎯 Mixed formats', desc: 'A blended variation of objective and theory exercises.' },
+                  { id: 'story-based', label: '📖 Story-based Scenario', desc: 'Tricky real-world narrative questions testing deep thinking.' }
+                ].map((item) => {
+                  const isSelected = format === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setFormat(item.id as any)}
+                      className={`p-3.5 border rounded-2xl text-left transition-all cursor-pointer group flex flex-col w-full ${
+                        isSelected 
+                          ? 'border-brand-green bg-brand-green/5' 
+                          : 'border-gray-150 bg-white hover:bg-gray-50/40'
+                      }`}
+                    >
+                      <span className="font-bold text-xs text-brand-forest block">
+                        {item.label}
+                      </span>
+                      <span className="text-[9px] text-gray-400 font-medium mt-0.5 leading-normal">
+                        {item.desc}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Questions count */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60">
+                  Question Count (Points)
+                </label>
+                <span className="text-[10px] font-extrabold text-brand-green bg-brand-green/10 px-2.5 py-0.5 rounded-full">
+                  {numQuestions} questions
+                </span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max={isExam ? 15 : 20}
+                step="5"
+                value={numQuestions}
+                onChange={(e) => setNumQuestions(Number(e.target.value))}
+                className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-brand-green"
+              />
+              <div className="flex justify-between text-[8px] font-bold text-gray-400 px-1 uppercase tracking-wider">
+                <span>5 (Mini)</span>
+                <span>10 (Standard)</span>
+                <span>15 (Exam Limit)</span>
+                {!isExam && <span>20 (Marathon)</span>}
+              </div>
+            </div>
+
+            {/* Custom focus instructions */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60">
+                Custom Focus / Instructions (Optional)
+              </label>
+              <input
+                type="text"
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="e.g. Focus on key formulas or Section 3..."
+                className="w-full p-3 border border-gray-150 rounded-xl bg-white text-xs font-medium text-brand-forest focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-all"
+              />
+            </div>
           </div>
 
           <button
-            type="submit"
-            disabled={submittingQuiz}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-brand-green text-white rounded-xl text-xs font-bold hover:bg-brand-green/90 transition-all cursor-pointer active:scale-[0.98] mt-4"
+            onClick={() => onGenerateQuiz(format, numQuestions, instructions, isExam)}
+            className="w-full py-3.5 bg-brand-green hover:bg-brand-green/90 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5"
           >
-            {submittingQuiz ? 'Evaluating answers...' : 'Submit Answers'}
-          </button>
-        </form>
-      ) : (
-        /* Empty/Initial Welcome Sidebar Panel state */
-        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-          <Award className="w-12 h-12 text-gray-300" />
-          <p className="text-xs text-gray-400 font-medium max-w-[200px] leading-relaxed">
-            No active quiz loaded. Click below to generate adaptive questions from your notes.
-          </p>
-          <button
-            onClick={onGenerateQuiz}
-            className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
-          >
-            Generate Quiz
+            <FileQuestion className="w-4 h-4" />
+            <span>Generate {isExam ? 'Exam questions' : 'Practice questions'}</span>
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 
   if (isEmbed) {
