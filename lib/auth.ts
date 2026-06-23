@@ -12,6 +12,7 @@ export interface User {
   role: 'student' | 'admin' | 'teacher';
   onboardingComplete?: boolean;
   needsNameUpdate?: boolean;
+  authProvider?: 'google' | 'email';
 }
 
 // Client-side authentication persistence helper

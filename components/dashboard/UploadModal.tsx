@@ -62,6 +62,10 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         setError('Only PDF documents and image files (PNG, JPG, WEBP) are supported.');
         return;
       }
+      if (isPdf && selectedFile.size >= 11 * 1024 * 1024) {
+        setError("PDF files must be under 11MB (up to 10.99MB allowed).");
+        return;
+      }
       setFile(selectedFile);
       if (!title) {
         // Strip extension from default title
@@ -90,6 +94,10 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       const isImage = selectedFile.type.startsWith('image/');
       if (!isPdf && !isImage) {
         setError('Only PDF documents and image files (PNG, JPG, WEBP) are supported.');
+        return;
+      }
+      if (isPdf && selectedFile.size >= 11 * 1024 * 1024) {
+        setError("PDF files must be under 11MB (up to 10.99MB allowed).");
         return;
       }
       setFile(selectedFile);
@@ -203,7 +211,12 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'An error occurred during upload or analysis. Please try again.');
+      const isLimitErr = err.message?.includes('maximum PDF upload') || err.message?.includes('limit reached');
+      setError(
+        isLimitErr 
+          ? "You've reached your maximum PDF upload for the day. Come back tomorrow!" 
+          : (err.message || 'An error occurred during upload or analysis. Please try again.')
+      );
       setUploading(false);
       setAnalyzing(false);
     }
@@ -277,11 +290,11 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     <Upload className="w-4 h-4 sm:w-5 h-5" />
                   </div>
                   <h3 className="font-bold text-xs text-brand-forest mb-0.5">
-                    <span className="hidden sm:inline">Drag and drop your PDF or image here</span>
-                    <span className="sm:hidden">Tap to upload PDF or image</span>
+                    <span className="hidden sm:inline">Drag and drop your PDF (max 10MB) or image here</span>
+                    <span className="sm:hidden">Tap to upload PDF (max 10MB) or image</span>
                   </h3>
                   <p className="text-[10px] text-gray-400 hidden sm:block">
-                    Or click to browse files from your computer
+                    Or click to browse files from your computer (PDFs must be under 11MB)
                   </p>
                 </div>
               ) : (

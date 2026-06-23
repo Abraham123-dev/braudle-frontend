@@ -27,6 +27,9 @@ function AuthCallbackContent() {
           if (response.user) {
             auth.setCurrentUser(response.user);
             setUser(response.user);
+            if (typeof window !== 'undefined' && response.user.authProvider) {
+              localStorage.setItem('braudle_last_login_method', response.user.authProvider);
+            }
 
             // Redirect correctly based on onboarding status
             if (!response.user.onboardingComplete) {
@@ -52,6 +55,9 @@ function AuthCallbackContent() {
           if (response.user) {
             auth.setCurrentUser(response.user);
             setUser(response.user);
+            if (typeof window !== 'undefined' && response.user.authProvider) {
+              localStorage.setItem('braudle_last_login_method', response.user.authProvider);
+            }
 
             if (!response.user.onboardingComplete) {
               router.replace('/onboarding');

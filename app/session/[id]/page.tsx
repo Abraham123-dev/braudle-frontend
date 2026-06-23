@@ -327,6 +327,8 @@ export default function SessionPage({ params }: SessionPageProps) {
       setRightPanelTab('quiz');
       setActiveMobileTab('studio');
       setShowRightPane(true);
+      setInput('');
+      return;
     } else if (isExamReq) {
       setIsExamSession(true);
       setQuiz(null);
@@ -334,10 +336,14 @@ export default function SessionPage({ params }: SessionPageProps) {
       setRightPanelTab('quiz');
       setActiveMobileTab('studio');
       setShowRightPane(true);
+      setInput('');
+      return;
     } else if (isFcReq) {
       setRightPanelTab('flashcards');
       setActiveMobileTab('studio');
       setShowRightPane(true);
+      setInput('');
+      return;
     }
 
     handleSendMessage(e);
@@ -664,7 +670,25 @@ export default function SessionPage({ params }: SessionPageProps) {
                               return (
                                 <button
                                   key={m.id}
-                                  onClick={() => handleModeChange(m.id)}
+                                  onClick={() => {
+                                    if (m.id === 'practice') {
+                                      setIsExamSession(false);
+                                      setQuiz(null);
+                                      setQuizResult(null);
+                                      setRightPanelTab('quiz');
+                                      setActiveMobileTab('studio');
+                                      setShowRightPane(true);
+                                    } else if (m.id === 'prepare') {
+                                      setIsExamSession(true);
+                                      setQuiz(null);
+                                      setQuizResult(null);
+                                      setRightPanelTab('quiz');
+                                      setActiveMobileTab('studio');
+                                      setShowRightPane(true);
+                                    } else {
+                                      handleModeChange(m.id);
+                                    }
+                                  }}
                                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all cursor-pointer active:scale-95 ${
                                     activeMode === m.id
                                       ? 'bg-brand-green text-white border-brand-green'

@@ -16,7 +16,7 @@ export const FAQ = () => {
     },
     {
       question: "Is there a limit to how much I can study?",
-      answer: "On the free tier you can upload up to 2 PDFs and 5 images per day. Your AI tutor sessions and quizzes are unlimited — study as much as you want."
+      answer: "On the free tier you can upload up to 5 PDFs (up to 10MB each) and unlimited images per day. Your AI tutor sessions and quizzes are unlimited — study as much as you want."
     },
     {
       question: "Can I use it for exam preparation?",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Award, ChevronRight, AlertCircle, FileQuestion, ChevronLeft, Loader2 } from 'lucide-react';
 import { Quiz, Question } from '@/hooks/useSession';
 import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
@@ -63,6 +63,9 @@ export default function PracticePanel({
   // Hint collapsible state
   const [isHintOpen, setIsHintOpen] = useState<boolean>(false);
 
+  // Keep track of the active quiz ID to prevent resetting pagination index when the parent updates the quiz object
+  const previousQuizIdRef = useRef<string | null>(null);
+
   // Sync state with quiz when it loads or changes
   useEffect(() => {
     if (quiz) {
@@ -86,13 +89,19 @@ export default function PracticePanel({
       setGradedQuestions(graded);
       setSelectedAnswers(selectAns);
       setTheoryAnswers(theoryAns);
-      setCurrentQuestionIdx(0);
+      
+      const quizId = quiz._id || (quiz as any).id || null;
+      if (previousQuizIdRef.current !== quizId) {
+        setCurrentQuestionIdx(0);
+        previousQuizIdRef.current = quizId;
+      }
       setIsHintOpen(false);
     } else {
       setGradedQuestions({});
       setSelectedAnswers({});
       setTheoryAnswers({});
       setCurrentQuestionIdx(0);
+      previousQuizIdRef.current = null;
       setIsHintOpen(false);
     }
   }, [quiz, setSelectedAnswers]);
@@ -527,10 +536,11 @@ export default function PracticePanel({
 
           <button
             onClick={() => onGenerateQuiz(format, numQuestions, instructions, isExam)}
-            className="w-full py-3.5 bg-brand-green hover:bg-brand-green/90 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5"
+            disabled={loadingQuiz}
+            className="w-full py-3.5 bg-brand-green hover:bg-brand-green/90 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5 disabled:opacity-55 disabled:cursor-not-allowed"
           >
             <FileQuestion className="w-4 h-4" />
-            <span>Generate {isExam ? 'Exam questions' : 'Practice questions'}</span>
+            <span>{loadingQuiz ? 'Generating...' : `Generate ${isExam ? 'Exam questions' : 'Practice questions'}`}</span>
           </button>
         </div>
       )}

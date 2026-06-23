@@ -10,7 +10,7 @@ export const Pricing = () => {
       name: "Free",
       price: "$0",
       description: "Start your learning journey.",
-      features: ["2 uploads per day", "Adaptive Teach Mode", "Advanced 'Explain Like I'm' levels", "Deep Misconception Insights", "50MB PDF support"],
+      features: ["5 PDFs/day, unlimited images", "Adaptive Teach Mode", "Advanced 'Explain Like I'm' levels", "Deep Misconception Insights", "10MB PDF support"],
       cta: "Get Started",
       highlight: false
     },
