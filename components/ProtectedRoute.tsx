@@ -15,7 +15,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, setUser, setIsLoading } = useStore();
-  
+
   const [mounted, setMounted] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -51,11 +51,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       try {
         const response = await api.get<{ user: User }>('/auth/me');
         if (!active) return;
-        
+
         if (response.user) {
           auth.setCurrentUser(response.user);
           setUser(response.user);
-          
+
           const redirected = handleRedirect(response.user);
           if (!redirected) {
             setChecking(false);
@@ -85,7 +85,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       if (!redirected) {
         setChecking(false);
       }
-      
+
       // Verify session integrity in the background
       api.get<{ user: User }>('/auth/me')
         .then((response) => {

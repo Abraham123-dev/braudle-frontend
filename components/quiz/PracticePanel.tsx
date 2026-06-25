@@ -8,6 +8,89 @@ const cleanOptionText = (text: string) => {
   return text.replace(/^[a-zA-Z][\.\)]\s*/, '');
 };
 
+function isAnswerMatch(selected: string, correct: string, options?: string[], optionIdx?: number): boolean {
+  if (!selected || !correct) return false;
+  
+  const cleanSel = selected.trim();
+  const cleanCorr = correct.trim();
+  
+  if (cleanSel.toLowerCase() === cleanCorr.toLowerCase()) {
+    return true;
+  }
+
+  // Boolean/True-False grading
+  if (cleanCorr.toLowerCase() === 'true' || cleanCorr.toLowerCase() === 'false') {
+    if (cleanSel.toLowerCase() === 't' && cleanCorr.toLowerCase() === 'true') return true;
+    if (cleanSel.toLowerCase() === 'f' && cleanCorr.toLowerCase() === 'false') return true;
+    return false;
+  }
+  
+  const parseOption = (text: string) => {
+    const match = text.match(/^([A-D])\s*[\.\)\:-]/i);
+    if (match) {
+      return {
+        letter: match[1].toLowerCase(),
+        text: text.slice(match[0].length).trim().toLowerCase()
+      };
+    }
+    return {
+      letter: '',
+      text: text.trim().toLowerCase()
+    };
+  };
+  
+  const selParsed = parseOption(cleanSel);
+  const corrParsed = parseOption(cleanCorr);
+  
+  if (corrParsed.letter && selParsed.letter && corrParsed.letter === selParsed.letter) {
+    return true;
+  }
+  
+  if (/^[A-D]\.?$/i.test(cleanCorr)) {
+    const correctLetter = cleanCorr.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (selParsed.letter === correctLetter) {
+      return true;
+    }
+  }
+
+  if (/^[A-D]\.?$/i.test(cleanSel)) {
+    const selectedLetter = cleanSel.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (corrParsed.letter === selectedLetter) {
+      return true;
+    }
+  }
+
+  // Match using options index if available
+  if (options && options.length > 0) {
+    const studentIdx = optionIdx !== undefined && optionIdx !== -1 ? optionIdx : options.findIndex(opt => opt.trim().toLowerCase() === cleanSel.toLowerCase());
+    const correctIdx = options.findIndex(opt => opt.trim().toLowerCase() === cleanCorr.toLowerCase());
+
+    const studentLetter = studentIdx !== -1 ? String.fromCharCode(97 + studentIdx) : null;
+    const correctLetter = correctIdx !== -1 ? String.fromCharCode(97 + correctIdx) : null;
+
+    const cleanCorrLetterOnly = cleanCorr.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (cleanCorrLetterOnly.length === 1 && studentLetter && cleanCorrLetterOnly === studentLetter) {
+      return true;
+    }
+
+    const cleanSelLetterOnly = cleanSel.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (cleanSelLetterOnly.length === 1 && correctLetter && cleanSelLetterOnly === correctLetter) {
+      return true;
+    }
+
+    if (studentLetter && correctLetter && studentLetter === correctLetter) {
+      return true;
+    }
+  }
+  
+  const stripPrefix = (str: string) => str.replace(/^([A-D])\s*[\.\)\:-]\s*/i, '').trim().toLowerCase();
+  if (stripPrefix(cleanSel) === stripPrefix(cleanCorr)) {
+    return true;
+  }
+  
+  return false;
+}
+
 interface PracticePanelProps {
   quiz: Quiz | null;
   selectedAnswers: Record<string, string>;
@@ -239,7 +322,7 @@ export default function PracticePanel({
                     <div className="space-y-3">
                       {q.options.map((option, idx) => {
                         const isSelected = selectedAnswers[q._id] === option;
-                        const isCorrectAnswer = gradeInfo?.correctAnswer === option || q.answer === option;
+                        const isCorrectAnswer = isAnswerMatch(option, gradeInfo?.correctAnswer || q.answer || '', q.options, idx);
 
                         const optionText = cleanOptionText(option);
                         const letter = String.fromCharCode(65 + idx); // A, B, C, D...
@@ -437,7 +520,7 @@ export default function PracticePanel({
             {/* Hint dropdown under the actions bar */}
             {isHintOpen && !gradedQuestions[quiz.questions[currentQuestionIdx]?._id] && (
               <div className="p-3.5 bg-zinc-50 border border-zinc-150/40 rounded-xl text-xs sm:text-sm text-zinc-500 font-medium leading-relaxed max-w-sm animate-in fade-in duration-200 text-left">
-                💡 Focus on the concepts of <strong className="text-zinc-600 font-semibold">{quiz.questions[currentQuestionIdx]?.topic}</strong>. Review how this fits into the document summary equations.
+                💡 Focus on the concepts of <strong className="text-zinc-600 font-semibold">{quiz.questions[currentQuestionIdx]?.topic || 'this section'}</strong>. Review how this fits into the document summary equations.
               </div>
             )}
           </div>

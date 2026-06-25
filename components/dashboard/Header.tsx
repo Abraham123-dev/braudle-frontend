@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { auth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { 
   Search, BookOpen, Plus, LogOut, Settings, 
-  User as UserIcon, X, Check, Award, Book, Compass, Shield
+  User as UserIcon, X, Check, Award, Book, Compass, Shield,
+  MessageSquare
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -20,6 +21,7 @@ interface HeaderProps {
 export default function Header({ searchQuery, setSearchQuery, onUploadClick }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, setUser } = useStore();
   
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -86,6 +88,22 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
             >
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Library</span>
+            </Link>
+
+            <div className="h-4 w-px bg-gray-100 hidden sm:block" />
+
+            {/* Chat with Braudle Toggle Icon */}
+            <Link 
+              href={pathname === '/home' && searchParams.get('chat') === 'true' ? '/home' : '/home?chat=true'} 
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                pathname === '/home' && searchParams.get('chat') === 'true'
+                  ? 'bg-brand-green/10 text-brand-green border-brand-green/10' 
+                  : 'text-gray-400 hover:text-brand-forest hover:bg-gray-50 border-transparent'
+              }`}
+              title="Chat with Braudle"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">AI Chat</span>
             </Link>
           </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { api, fetchWithRefresh } from '@/lib/api';
 import { X, Upload, FileText, AlertCircle, Compass } from 'lucide-react';
 
 interface UploadModalProps {
@@ -168,10 +168,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
 
       // 2. Perform upload via backend server (bypassing client CORS limitations)
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const uploadResponse = await fetch(`${apiBaseUrl}/documents/upload`, {
+      const uploadResponse = await fetchWithRefresh(`${apiBaseUrl}/documents/upload`, {
         method: 'POST',
-        body: formData,
-        credentials: 'include'
+        body: formData
       });
 
       if (!uploadResponse.ok) {

@@ -27,8 +27,8 @@ function AuthCallbackContent() {
           if (response.user) {
             auth.setCurrentUser(response.user);
             setUser(response.user);
-            if (typeof window !== 'undefined' && response.user.authProvider) {
-              localStorage.setItem('braudle_last_login_method', response.user.authProvider);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('braudle_last_login_method', 'email');
             }
 
             // Redirect correctly based on onboarding status
@@ -55,8 +55,8 @@ function AuthCallbackContent() {
           if (response.user) {
             auth.setCurrentUser(response.user);
             setUser(response.user);
-            if (typeof window !== 'undefined' && response.user.authProvider) {
-              localStorage.setItem('braudle_last_login_method', response.user.authProvider);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('braudle_last_login_method', 'google');
             }
 
             if (!response.user.onboardingComplete) {

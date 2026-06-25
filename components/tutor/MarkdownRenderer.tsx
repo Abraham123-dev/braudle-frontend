@@ -269,10 +269,10 @@ export function renderInlineContent(text: string): React.ReactNode {
   });
 }
 
-// Helper for bold and monospace formatting
+// Helper for bold, concept emphasis, and monospace formatting
 function parseInlineMarkdown(text: string, parentKey: number) {
-  // Split by bold (**bold** or __bold__) and inline code (`code`)
-  const subParts = text.split(/(\*\*.*?\*\*|__.*?__|`.*?`)/g);
+  // Split by bold (**bold** or __bold__), inline code (`code`), and single emphasis (*concept* or _concept_)
+  const subParts = text.split(/(\*\*.*?\*\*|__.*?__|`.*?`|\*[^\*]+?\*|_[^_]+?_)/g);
 
   return (
     <React.Fragment key={parentKey}>
@@ -296,6 +296,20 @@ function parseInlineMarkdown(text: string, parentKey: number) {
             <code key={idx} className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-brand-green border border-zinc-200/50">
               {sub.slice(1, -1)}
             </code>
+          );
+        }
+        if (sub.startsWith('*') && sub.endsWith('*')) {
+          return (
+            <mark key={idx} className="bg-brand-yellow/20 text-brand-forest font-bold px-1.5 py-0.5 rounded border border-brand-yellow/30 mx-0.5 inline-block sm:inline leading-none">
+              {sub.slice(1, -1)}
+            </mark>
+          );
+        }
+        if (sub.startsWith('_') && sub.endsWith('_')) {
+          return (
+            <mark key={idx} className="bg-brand-yellow/20 text-brand-forest font-bold px-1.5 py-0.5 rounded border border-brand-yellow/30 mx-0.5 inline-block sm:inline leading-none">
+              {sub.slice(1, -1)}
+            </mark>
           );
         }
         return sub;

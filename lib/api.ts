@@ -23,6 +23,69 @@ function onRefreshed(success: boolean) {
   refreshSubscribers = [];
 }
 
+/**
+ * Raw fetch wrapper that automatically handles 401 Unauthorized status
+ * by performing a silent token refresh and retrying the request.
+ */
+export async function fetchWithRefresh(url: string, options?: RequestInit): Promise<Response> {
+  const requestOptions: RequestInit = {
+    ...options,
+    credentials: 'include', // Crucial for httpOnly cookies
+  };
+
+  const response = await fetch(url, requestOptions);
+
+  if (response.status === 401 && !url.includes('/auth/refresh') && !url.includes('/auth/logout')) {
+    const retryPromise = new Promise<Response>((resolve, reject) => {
+      subscribeTokenRefresh((success) => {
+        if (success) {
+          fetch(url, requestOptions)
+            .then(resolve)
+            .catch(reject);
+        } else {
+          reject(new Error('Unauthorized'));
+        }
+      });
+    });
+
+    if (!isRefreshing) {
+      isRefreshing = true;
+      (async () => {
+        try {
+          const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          if (refreshRes.ok) {
+            isRefreshing = false;
+            onRefreshed(true);
+          } else {
+            isRefreshing = false;
+            onRefreshed(false);
+            if (typeof window !== 'undefined') {
+              const { auth } = await import('./auth');
+              auth.logout();
+            }
+          }
+        } catch (err) {
+          isRefreshing = false;
+          onRefreshed(false);
+          if (typeof window !== 'undefined') {
+            const { auth } = await import('./auth');
+            auth.logout();
+          }
+        }
+      })();
+    }
+
+    return retryPromise;
+  }
+
+  return response;
+}
+
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
@@ -33,72 +96,10 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
   const requestOptions: RequestInit = {
     ...options,
-    credentials: 'include', // Crucial for httpOnly cookies
     headers,
   };
 
-  const response = await fetch(url, requestOptions);
-
-  if (response.status === 401 && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/logout')) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      try {
-        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (refreshRes.ok) {
-          isRefreshing = false;
-          onRefreshed(true);
-        } else {
-          isRefreshing = false;
-          onRefreshed(false);
-          // Auto logout
-          if (typeof window !== 'undefined') {
-            const { auth } = await import('./auth');
-            auth.logout();
-          }
-          throw new Error('Unauthorized');
-        }
-      } catch (err) {
-        isRefreshing = false;
-        onRefreshed(false);
-        if (typeof window !== 'undefined') {
-          const { auth } = await import('./auth');
-          auth.logout();
-        }
-        throw err;
-      }
-    }
-
-    // Queue request to retry after refresh completes
-    return new Promise<T>((resolve, reject) => {
-      subscribeTokenRefresh((success) => {
-        if (success) {
-          fetch(url, requestOptions)
-            .then(async (res) => {
-              if (!res.ok) {
-                let errData;
-                try {
-                  errData = await res.json();
-                } catch {}
-                const error: any = new Error(errData?.message || `API Error: ${res.statusText}`);
-                error.status = res.status;
-                error.code = errData?.code;
-                reject(error);
-              } else {
-                resolve(res.json() as Promise<T>);
-              }
-            })
-            .catch(reject);
-        } else {
-          reject(new Error('Unauthorized'));
-        }
-      });
-    });
-  }
+  const response = await fetchWithRefresh(url, requestOptions);
 
   if (!response.ok) {
     let errorData: any;

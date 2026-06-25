@@ -1,13 +1,67 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { api } from '@/lib/api';
+import { api, fetchWithRefresh } from '@/lib/api';
 import { User } from '@/lib/auth';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp?: string;
+  suggestions?: string[];
+  inlineQuiz?: {
+    question: string;
+    options: string[];
+    answer: string;
+    explanation: string;
+  };
+}
+
+function parseMessageTags(msg: ChatMessage): ChatMessage {
+  if (msg.role !== 'assistant') return msg;
+
+  let content = msg.content;
+  let suggestions: string[] | undefined;
+  let inlineQuiz: any | undefined;
+
+  // Regex to match [SUGGESTIONS: [...]] or [SUGGESTIONS: "...", "..."]
+  const suggestionsRegex = /\[SUGGESTIONS:\s*(?:\[([\s\S]*?)\]|([\s\S]*?))\]/i;
+  const suggestionsMatch = content.match(suggestionsRegex);
+  if (suggestionsMatch) {
+    const rawVal = (suggestionsMatch[1] || suggestionsMatch[2] || '').trim();
+    try {
+      suggestions = JSON.parse(`[${rawVal}]`);
+    } catch (e) {
+      // Fallback 1: match all quoted strings
+      const quotedMatches = rawVal.match(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g);
+      if (quotedMatches) {
+        suggestions = quotedMatches.map(m => m.slice(1, -1).trim());
+      } else {
+        // Fallback 2: split by comma and clean
+        suggestions = rawVal.split(',').map(s => s.trim().replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+      }
+    }
+    content = content.replace(suggestionsRegex, '').trim();
+  }
+
+  // Regex to match [QUIZ_QUESTION: {...}]
+  const quizRegex = /\[QUIZ_QUESTION:\s*(\{[\s\S]*?\})\]/;
+  const quizMatch = content.match(quizRegex);
+  if (quizMatch) {
+    try {
+      inlineQuiz = JSON.parse(quizMatch[1]);
+    } catch (e) {
+      console.error('Failed to parse inline quiz JSON:', e);
+    }
+    content = content.replace(quizRegex, '').trim();
+  }
+
+  return {
+    ...msg,
+    content,
+    suggestions,
+    inlineQuiz
+  };
 }
 
 export interface Question {
@@ -82,6 +136,7 @@ export function useSession(sessionId: string) {
   const [timeGreeting, setTimeGreeting] = useState('Ready to study');
 
   const isInitialTriggered = useRef(false);
+  const isStreamingRef = useRef(false);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -102,7 +157,7 @@ export function useSession(sessionId: string) {
     try {
       // 1. Fetch current session log & messages
       const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
-      const historyMessages = sessionRes.messages || [];
+      const historyMessages = (sessionRes.messages || []).map(parseMessageTags);
       setMessages(historyMessages);
 
       if (sessionRes.session) {
@@ -135,11 +190,11 @@ export function useSession(sessionId: string) {
         
         const welcomeMsg = welcomeRes.welcome.message;
         if (welcomeMsg && historyMessages.length === 0) {
-          const welcomeMsgObj = {
+          const welcomeMsgObj = parseMessageTags({
             role: 'assistant' as const,
             content: welcomeMsg,
             timestamp: new Date().toISOString()
-          };
+          });
           setMessages([welcomeMsgObj]);
         } else {
           setMessages(historyMessages);
@@ -174,7 +229,7 @@ export function useSession(sessionId: string) {
               setIsProcessingDoc(false);
               // Reload fully once document is ready
               const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
-              const historyMsgs = sessionRes.messages || [];
+              const historyMsgs = (sessionRes.messages || []).map(parseMessageTags);
               setMessages(historyMsgs);
               
               const welcomeRes = await api.get<any>(`/sessions/${sessionId}/welcome`);
@@ -185,11 +240,11 @@ export function useSession(sessionId: string) {
                 
                 const welcomeMsg = welcomeRes.welcome.message;
                 if (welcomeMsg && historyMsgs.length === 0) {
-                  const welcomeMsgObj = {
+                  const welcomeMsgObj = parseMessageTags({
                     role: 'assistant' as const,
                     content: welcomeMsg,
                     timestamp: new Date().toISOString()
-                  };
+                  });
                   setMessages([welcomeMsgObj]);
                 } else {
                   setMessages(historyMsgs);
@@ -209,6 +264,8 @@ export function useSession(sessionId: string) {
   }, [sessionId, isProcessingDoc]);
 
   const triggerTutorStream = async (messageText: string) => {
+    if (isStreamingRef.current) return;
+    isStreamingRef.current = true;
     setIsStreaming(true);
     setStreamingContent('');
 
@@ -216,14 +273,13 @@ export function useSession(sessionId: string) {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const streamUrl = `${backendUrl}/sessions/${sessionId}/chat`;
 
-      const response = await fetch(streamUrl, {
+      const response = await fetchWithRefresh(streamUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream'
         },
-        body: JSON.stringify({ message: messageText }),
-        credentials: 'include'
+        body: JSON.stringify({ message: messageText })
       });
 
       if (!response.ok) {
@@ -258,33 +314,40 @@ export function useSession(sessionId: string) {
 
             try {
               const parsed = JSON.parse(dataStr);
-              if (parsed.token) {
-                accumulatedText += parsed.token;
-                setStreamingContent(accumulatedText);
-              } else if (parsed.error) {
-                throw new Error(parsed.error);
-              }
-            } catch (e) {
-              // JSON parse issues can occur if S3 chunks split characters
+            if (parsed.token) {
+              accumulatedText += parsed.token;
+              
+              // Clean dynamic tags out of active streaming view
+              let cleanStream = accumulatedText;
+              cleanStream = cleanStream.split('[SUGGESTIONS:')[0];
+              cleanStream = cleanStream.split('[QUIZ_QUESTION:')[0];
+              setStreamingContent(cleanStream.trim());
+            } else if (parsed.error) {
+              throw new Error(parsed.error);
             }
+          } catch (e) {
+            // JSON parse issues can occur if S3 chunks split characters
           }
         }
       }
-
-      if (accumulatedText) {
-        setMessages(prev => [...prev, { role: 'assistant', content: accumulatedText }]);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setMessages(prev => [
-        ...prev, 
-        { role: 'assistant', content: `Error: ${err.message || 'Tutoring connection timed out. Please try sending your prompt again.'}` }
-      ]);
-    } finally {
-      setStreamingContent('');
-      setIsStreaming(false);
     }
-  };
+
+    if (accumulatedText) {
+      const parsedMsg = parseMessageTags({ role: 'assistant', content: accumulatedText });
+      setMessages(prev => [...prev, parsedMsg]);
+    }
+  } catch (err: any) {
+    console.error(err);
+    setMessages(prev => [
+      ...prev, 
+      { role: 'assistant', content: `Error: ${err.message || 'Tutoring connection timed out. Please try sending your prompt again.'}` }
+    ]);
+  } finally {
+    setStreamingContent('');
+    setIsStreaming(false);
+    isStreamingRef.current = false;
+  }
+};
 
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -296,13 +359,15 @@ export function useSession(sessionId: string) {
     triggerTutorStream(userText);
   };
 
-  const handleModeChange = async (mode: string) => {
-    if (isStreaming) return;
+  const handleModeChange = async (mode: string, skipAiTrigger = false) => {
+    if (isStreamingRef.current || isStreaming) return;
     try {
       setActiveMode(mode);
       await api.patch(`/sessions/${sessionId}/state`, { mode });
       setMessages(prev => [...prev, { role: 'system', content: `Study method switched to ${mode.toUpperCase()}.` }]);
-      triggerTutorStream(`I want to switch our study focus to ${mode} mode. Let's adapt.`);
+      if (!skipAiTrigger) {
+        triggerTutorStream(`I want to switch our study focus to ${mode} mode. Let's adapt.`);
+      }
     } catch (err: any) {
       alert(`Failed to update mode: ${err.message}`);
     }
@@ -428,6 +493,9 @@ export function useSession(sessionId: string) {
     }
   };
 
+  const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+  const activeSuggestions = lastAssistantMessage?.suggestions || [];
+
   return {
     loading,
     error,
@@ -461,6 +529,7 @@ export function useSession(sessionId: string) {
     handleFinishSession,
     handleGradeQuestion,
     sessionQuizzes,
-    fetchSessionQuizzes
+    fetchSessionQuizzes,
+    activeSuggestions
   };
 }

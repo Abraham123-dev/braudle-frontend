@@ -28,6 +28,89 @@ interface SessionPageProps {
   params: Promise<{ id: string }>;
 }
 
+function isAnswerMatch(selected: string, correct: string, options?: string[], optionIdx?: number): boolean {
+  if (!selected || !correct) return false;
+  
+  const cleanSel = selected.trim();
+  const cleanCorr = correct.trim();
+  
+  if (cleanSel.toLowerCase() === cleanCorr.toLowerCase()) {
+    return true;
+  }
+
+  // Boolean/True-False grading
+  if (cleanCorr.toLowerCase() === 'true' || cleanCorr.toLowerCase() === 'false') {
+    if (cleanSel.toLowerCase() === 't' && cleanCorr.toLowerCase() === 'true') return true;
+    if (cleanSel.toLowerCase() === 'f' && cleanCorr.toLowerCase() === 'false') return true;
+    return false;
+  }
+  
+  const parseOption = (text: string) => {
+    const match = text.match(/^([A-D])\s*[\.\)\:-]/i);
+    if (match) {
+      return {
+        letter: match[1].toLowerCase(),
+        text: text.slice(match[0].length).trim().toLowerCase()
+      };
+    }
+    return {
+      letter: '',
+      text: text.trim().toLowerCase()
+    };
+  };
+  
+  const selParsed = parseOption(cleanSel);
+  const corrParsed = parseOption(cleanCorr);
+  
+  if (corrParsed.letter && selParsed.letter && corrParsed.letter === selParsed.letter) {
+    return true;
+  }
+  
+  if (/^[A-D]\.?$/i.test(cleanCorr)) {
+    const correctLetter = cleanCorr.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (selParsed.letter === correctLetter) {
+      return true;
+    }
+  }
+
+  if (/^[A-D]\.?$/i.test(cleanSel)) {
+    const selectedLetter = cleanSel.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (corrParsed.letter === selectedLetter) {
+      return true;
+    }
+  }
+
+  // Match using options index if available
+  if (options && options.length > 0) {
+    const studentIdx = optionIdx !== undefined && optionIdx !== -1 ? optionIdx : options.findIndex(opt => opt.trim().toLowerCase() === cleanSel.toLowerCase());
+    const correctIdx = options.findIndex(opt => opt.trim().toLowerCase() === cleanCorr.toLowerCase());
+
+    const studentLetter = studentIdx !== -1 ? String.fromCharCode(97 + studentIdx) : null;
+    const correctLetter = correctIdx !== -1 ? String.fromCharCode(97 + correctIdx) : null;
+
+    const cleanCorrLetterOnly = cleanCorr.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (cleanCorrLetterOnly.length === 1 && studentLetter && cleanCorrLetterOnly === studentLetter) {
+      return true;
+    }
+
+    const cleanSelLetterOnly = cleanSel.replace(/[\.\)\:-]/g, '').trim().toLowerCase();
+    if (cleanSelLetterOnly.length === 1 && correctLetter && cleanSelLetterOnly === correctLetter) {
+      return true;
+    }
+
+    if (studentLetter && correctLetter && studentLetter === correctLetter) {
+      return true;
+    }
+  }
+  
+  const stripPrefix = (str: string) => str.replace(/^([A-D])\s*[\.\)\:-]\s*/i, '').trim().toLowerCase();
+  if (stripPrefix(cleanSel) === stripPrefix(cleanCorr)) {
+    return true;
+  }
+  
+  return false;
+}
+
 interface SavedNote {
   id: string;
   title: string;
@@ -79,13 +162,17 @@ export default function SessionPage({ params }: SessionPageProps) {
     handleGradeQuestion,
     docSummary,
     sessionQuizzes,
-    fetchSessionQuizzes
+    fetchSessionQuizzes,
+    activeSuggestions
   } = useSession(sessionId);
 
   // Local Notes State
   const [notes, setNotes] = React.useState<SavedNote[]>([]);
   const [isAddNoteOpen, setIsAddNoteOpen] = React.useState(false);
   const [selectedNote, setSelectedNote] = React.useState<SavedNote | null>(null);
+
+  // Local Inline Quiz State
+  const [inlineQuizAnswers, setInlineQuizAnswers] = React.useState<Record<number, string>>({});
 
   // Tab State for Right Panel
   const [rightPanelTab, setRightPanelTab] = React.useState<'studio' | 'quiz' | 'flashcards'>('studio');
@@ -291,7 +378,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     if (isStreaming) return;
     setIsGeneratingFlashcards(true);
     try {
-      await handleModeChange('flashcards');
+      await handleModeChange('flashcards', true);
       const userText = `Please generate exactly ${count} flashcards from our study materials.${
         focus.trim() ? ` Custom focus instructions: "${focus.trim()}"` : ''
       }`;
@@ -493,7 +580,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                 onConceptClick={handleConceptClick}
                 className={activeMobileTab === 'sources' 
                   ? 'flex flex-1 w-full bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left animate-in fade-in duration-200' 
-                  : 'hidden lg:flex w-72 bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left'}
+                  : 'hidden lg:flex w-64 bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left'}
               />
 
               {/* PANEL 2: CENTER CANVAS (Tutor Chat Space) */}
@@ -644,7 +731,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                         ))}
                       </div>
                     ) : (
-                      <div className="w-full max-w-[95%] md:max-w-[90%] bg-white border border-gray-100 rounded-3xl p-6 md:p-8 text-left shadow-2xs transition-all">
+                      <div className="w-full text-brand-forest py-4 text-sm text-left transition-all">
                         {/* Identity Badge */}
                         <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-150/45">
                           <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
@@ -656,6 +743,79 @@ export default function SessionPage({ params }: SessionPageProps) {
                         </div>
                         
                         <MarkdownRenderer content={msg.content} />
+
+                        {msg.inlineQuiz && (
+                          <div className="mt-4 p-5 bg-[#F0F4F9]/60 border border-zinc-200/50 rounded-2xl space-y-4 max-w-xl animate-in fade-in duration-200">
+                            <h4 className="font-bold text-xs text-brand-forest uppercase tracking-wider flex items-center gap-1.5">
+                              <Brain className="w-3.5 h-3.5 text-brand-green animate-pulse" />
+                              <span>Concept Check-In</span>
+                            </h4>
+                            <p className="text-xs font-semibold text-brand-forest leading-relaxed">
+                              {msg.inlineQuiz.question}
+                            </p>
+                            
+                            <div className="grid grid-cols-1 gap-2">
+                              {msg.inlineQuiz!.options.map((option: string, optionIdx: number) => {
+                                const selected = inlineQuizAnswers[index] === option;
+                                const answered = inlineQuizAnswers[index] !== undefined;
+                                const isCorrect = isAnswerMatch(option, msg.inlineQuiz!.answer, msg.inlineQuiz!.options, optionIdx);
+                                
+                                let btnStyle = "bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-700";
+                                if (answered) {
+                                  if (isCorrect) {
+                                    btnStyle = "bg-green-50 border-green-500 text-green-700 font-bold";
+                                  } else if (selected) {
+                                    btnStyle = "bg-rose-50 border-rose-500 text-rose-700 font-bold";
+                                  } else {
+                                    btnStyle = "bg-white border-zinc-200 text-zinc-400 opacity-60";
+                                  }
+                                }
+
+                                return (
+                                  <button
+                                    key={option}
+                                    type="button"
+                                    disabled={answered}
+                                    onClick={() => {
+                                      setInlineQuizAnswers(prev => ({ ...prev, [index]: option }));
+                                    }}
+                                    className={`w-full text-left px-4 py-2.5 rounded-xl border text-xs transition-all flex items-center justify-between ${btnStyle}`}
+                                  >
+                                    <span>{option}</span>
+                                    {answered && isCorrect && (
+                                      <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[10px]">✓</span>
+                                    )}
+                                    {answered && selected && !isCorrect && (
+                                      <span className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px]">✗</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {inlineQuizAnswers[index] !== undefined && (
+                              <div className="p-3.5 bg-white border border-zinc-200 rounded-xl space-y-1 animate-in fade-in slide-in-from-bottom-1 duration-200 text-left">
+                                {(() => {
+                                  const selectedOption = inlineQuizAnswers[index];
+                                  const selectedOptionIdx = msg.inlineQuiz!.options.indexOf(selectedOption);
+                                  const isSelectedCorrect = isAnswerMatch(selectedOption, msg.inlineQuiz!.answer, msg.inlineQuiz!.options, selectedOptionIdx);
+                                  return (
+                                    <>
+                                      <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                                        isSelectedCorrect ? 'text-green-600' : 'text-rose-600'
+                                      }`}>
+                                        {isSelectedCorrect ? 'Correct!' : 'Incorrect'}
+                                      </span>
+                                      <p className="text-xs text-gray-500 leading-relaxed font-normal">
+                                        {msg.inlineQuiz.explanation}
+                                      </p>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         
                         {index === 0 && (
                           <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -710,7 +870,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                 {/* Streaming Chunk Output parsed as Markdown */}
                 {isStreaming && streamingContent && (
                   <div className="flex justify-start w-full">
-                    <div className="w-full max-w-[95%] md:max-w-[90%] bg-white border border-gray-100 rounded-3xl p-6 md:p-8 text-left shadow-2xs">
+                    <div className="w-full text-brand-forest py-4 text-sm text-left">
                       {/* Identity Badge */}
                       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-150/45">
                         <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
@@ -729,7 +889,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                 {/* Loading indicator */}
                 {isStreaming && !streamingContent && (
                   <div className="flex justify-start w-full">
-                    <div className="w-full max-w-[95%] md:max-w-[90%] bg-white border border-gray-100 rounded-3xl p-6 md:p-8 text-left shadow-2xs">
+                    <div className="w-full text-brand-forest py-4 text-sm text-left">
                       {/* Identity Badge */}
                       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-150/45">
                         <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
@@ -762,8 +922,12 @@ export default function SessionPage({ params }: SessionPageProps) {
                 
                  {/* Floating suggestion pills */}
                  {!isStreaming && !isProcessingDoc && (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none text-left">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none text-left w-full">
                       {[
+                        ...(activeSuggestions && activeSuggestions.length > 0
+                          ? activeSuggestions.map((suggestionText, idx) => ({ id: `dyn-${idx}`, label: suggestionText }))
+                          : []
+                        ),
                         { id: 'analogy', label: '💡 Give an Analogy' },
                         { id: 'explain', label: '📖 Explain Core Idea' },
                         { id: 'practice', label: '✍️ Practice Quiz' },
@@ -774,28 +938,36 @@ export default function SessionPage({ params }: SessionPageProps) {
                           key={pill.id}
                           type="button"
                           onClick={() => {
-                            if (pill.id === 'explain') {
-                              setInput('Explain the core idea of this section in simple terms.');
-                            } else if (pill.id === 'analogy') {
-                              setInput('Give me a simple, real-world analogy to understand this.');
-                            } else if (pill.id === 'practice') {
-                              setIsExamSession(false);
-                              setQuiz(null);
-                              setQuizResult(null);
-                              setRightPanelTab('quiz');
-                              setActiveMobileTab('studio');
-                              setShowRightPane(true);
-                            } else if (pill.id === 'exam') {
-                              setIsExamSession(true);
-                              setQuiz(null);
-                              setQuizResult(null);
-                              setRightPanelTab('quiz');
-                              setActiveMobileTab('studio');
-                              setShowRightPane(true);
-                            } else if (pill.id === 'flashcards') {
-                              setRightPanelTab('flashcards');
-                              setActiveMobileTab('studio');
-                              setShowRightPane(true);
+                            if (pill.id.startsWith('dyn-')) {
+                              setInput(pill.label);
+                              setTimeout(() => {
+                                const sendBtn = document.getElementById('chat-send-btn');
+                                sendBtn?.click();
+                              }, 50);
+                            } else {
+                              if (pill.id === 'explain') {
+                                setInput('Explain the core idea of this section in simple terms.');
+                              } else if (pill.id === 'analogy') {
+                                setInput('Give me a simple, real-world analogy to understand this.');
+                              } else if (pill.id === 'practice') {
+                                setIsExamSession(false);
+                                setQuiz(null);
+                                setQuizResult(null);
+                                setRightPanelTab('quiz');
+                                setActiveMobileTab('studio');
+                                setShowRightPane(true);
+                              } else if (pill.id === 'exam') {
+                                setIsExamSession(true);
+                                setQuiz(null);
+                                setQuizResult(null);
+                                setRightPanelTab('quiz');
+                                setActiveMobileTab('studio');
+                                setShowRightPane(true);
+                              } else if (pill.id === 'flashcards') {
+                                setRightPanelTab('flashcards');
+                                setActiveMobileTab('studio');
+                                setShowRightPane(true);
+                              }
                             }
                           }}
                           className="px-3.5 py-1.5 rounded-full border border-zinc-200 text-xs font-bold text-zinc-600 bg-white hover:bg-zinc-50 hover:text-brand-forest transition-all cursor-pointer whitespace-nowrap active:scale-[0.98]"
@@ -849,7 +1021,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                         ? 'lg:w-92' 
                         : isExpandedRightPane
                           ? 'lg:w-[70vw] xl:w-[65vw] max-w-5xl'
-                          : 'lg:w-[48vw] xl:w-[50vw] max-w-3xl'
+                          : 'lg:w-[38vw] xl:w-[35vw] max-w-xl min-w-[350px]'
                     } animate-in slide-in-from-right-4 duration-300`
               }`}>
                 
