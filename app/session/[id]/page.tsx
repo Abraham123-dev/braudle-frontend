@@ -21,7 +21,13 @@ import {
   Trash2,
   X,
   Brain,
-  Sparkles
+  Sparkles,
+  Headphones,
+  Presentation,
+  Video,
+  GitBranch,
+  FileBarChart,
+  Table
 } from 'lucide-react';
 
 interface SessionPageProps {
@@ -201,6 +207,58 @@ export default function SessionPage({ params }: SessionPageProps) {
   const [currentFlashcardIdx, setCurrentFlashcardIdx] = React.useState(0);
   const [isFlipped, setIsFlipped] = React.useState(false);
 
+  // Time ago helper for NotebookLM styling
+  const formatTimeAgo = (dateString: string): string => {
+    if (!dateString) return '';
+    const now = new Date();
+    const past = new Date(dateString);
+    const diffMs = now.getTime() - past.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return '1d ago';
+    return `${diffDays}d ago`;
+  };
+
+  // Group and parse multiple flashcard decks dynamically from history
+  const parsedFlashcardDecks = React.useMemo(() => {
+    const decks: Array<{ id: string; date: string; cards: FlashcardItem[] }> = [];
+    messages.forEach((msg, idx) => {
+      if (msg.role === 'assistant') {
+        const lines = msg.content.split('\n');
+        const cards: FlashcardItem[] = [];
+        lines.forEach((line) => {
+          if (line.includes('FLASHCARD |')) {
+            const parts = line.split('|').map((p) => p.trim());
+            let topic = '';
+            let front = '';
+            let back = '';
+            parts.forEach((part) => {
+              if (part.startsWith('TOPIC:')) topic = part.replace('TOPIC:', '').trim();
+              if (part.startsWith('FRONT:')) front = part.replace('FRONT:', '').trim();
+              if (part.startsWith('BACK:')) back = part.replace('BACK:', '').trim();
+            });
+            if (front && back) {
+              cards.push({ topic: topic || 'General', front, back });
+            }
+          }
+        });
+        if (cards.length > 0) {
+          decks.push({
+            id: `deck-${idx}`,
+            date: msg.timestamp || new Date().toISOString(),
+            cards
+          });
+        }
+      }
+    });
+    return decks;
+  }, [messages]);
+
   // Load saved quiz helper
   const handleLoadSavedQuiz = (q: any) => {
     setIsExamSession(!!q.isExam);
@@ -220,6 +278,103 @@ export default function SessionPage({ params }: SessionPageProps) {
     setRightPanelTab('quiz');
     setShowRightPane(true);
   };
+
+  // Grid items configuration matching NotebookLM
+  const studioCards = [
+    {
+      id: 'audio',
+      label: 'Audio Overview',
+      desc: 'Audio overview generation is coming soon!',
+      bg: 'bg-indigo-50/60 hover:bg-indigo-100/50 border-indigo-150/10',
+      iconBg: 'bg-indigo-500/10 text-indigo-700',
+      icon: Headphones,
+      isPlaceholder: true
+    },
+    {
+      id: 'slides',
+      label: 'Slide Deck',
+      desc: 'Slide deck generation is coming soon!',
+      bg: 'bg-amber-50/60 hover:bg-amber-100/50 border-amber-150/10',
+      iconBg: 'bg-amber-500/10 text-amber-700',
+      icon: Presentation,
+      isPlaceholder: true
+    },
+    {
+      id: 'video',
+      label: 'Video Overview',
+      desc: 'Video overview generation is coming soon!',
+      bg: 'bg-green-50/60 hover:bg-green-100/50 border-green-150/10',
+      iconBg: 'bg-green-500/10 text-green-700',
+      icon: Video,
+      isPlaceholder: true
+    },
+    {
+      id: 'mindmap',
+      label: 'Mind Map',
+      desc: 'Interactive Mind Mapping is coming soon!',
+      bg: 'bg-purple-50/60 hover:bg-purple-100/50 border-purple-150/10',
+      iconBg: 'bg-purple-500/10 text-purple-700',
+      icon: GitBranch,
+      isPlaceholder: true
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      desc: 'Detailed learning reports are coming soon!',
+      bg: 'bg-gray-50 hover:bg-gray-100 border-gray-150/10',
+      iconBg: 'bg-gray-500/10 text-gray-700',
+      icon: FileBarChart,
+      isPlaceholder: true
+    },
+    {
+      id: 'flashcards',
+      label: 'Flashcards',
+      bg: 'bg-rose-50/60 hover:bg-rose-100/50 border-rose-150/10',
+      iconBg: 'bg-rose-500/10 text-rose-700',
+      icon: BookOpen,
+      isPlaceholder: false,
+      onClick: () => {
+        setRightPanelTab('flashcards');
+      }
+    },
+    {
+      id: 'quiz',
+      label: 'Quiz',
+      bg: 'bg-blue-50/60 hover:bg-blue-100/50 border-blue-150/10',
+      iconBg: 'bg-blue-500/10 text-blue-700',
+      icon: FileQuestion,
+      isPlaceholder: false,
+      onClick: () => {
+        setIsExamSession(false);
+        setRightPanelTab('quiz');
+        setQuiz(null);
+        setQuizResult(null);
+      }
+    },
+    {
+      id: 'examprep',
+      label: 'Exam Prep',
+      bg: 'bg-amber-50/60 hover:bg-amber-100/50 border-amber-150/10',
+      iconBg: 'bg-amber-500/10 text-amber-700',
+      icon: Award,
+      isPlaceholder: false,
+      onClick: () => {
+        setIsExamSession(true);
+        setRightPanelTab('quiz');
+        setQuiz(null);
+        setQuizResult(null);
+      }
+    },
+    {
+      id: 'datatable',
+      label: 'Data Table',
+      desc: 'Structured Data Tables are coming soon!',
+      bg: 'bg-blue-50/60 hover:bg-blue-100/50 border-blue-150/10',
+      iconBg: 'bg-blue-500/10 text-blue-700',
+      icon: Table,
+      isPlaceholder: true
+    }
+  ];
 
   // Combine saved notes, completed quizzes/exams, and flashcard decks
   const combinedItems = React.useMemo(() => {
@@ -241,27 +396,28 @@ export default function SessionPage({ params }: SessionPageProps) {
       list.push({
         type: 'quiz',
         id: q._id,
-        title: q.isExam ? 'Exam Simulation' : 'Practice Test',
-        subtitle: `${q.totalQuestions} questions · ${q.score !== undefined ? `Scored ${q.score}%` : 'In Progress'}`,
+        title: q.isExam ? `${docTitle} Exam` : `${docTitle} Quiz`,
+        subtitle: `1 source · ${q.totalQuestions} questions · ${q.score !== undefined ? `Scored ${q.score}%` : 'In Progress'}`,
         date: q.submittedAt || q.createdAt,
         raw: q
       });
     });
 
-    // Add active flashcards deck if present
-    if (flashcards.length > 0) {
+    // Add active flashcards decks
+    parsedFlashcardDecks.forEach((deck, idx) => {
+      const deckNum = idx + 1;
       list.push({
         type: 'flashcards',
-        id: 'session-flashcards',
-        title: 'Flashcards Deck',
-        subtitle: `${flashcards.length} memory cards`,
-        date: new Date().toISOString(),
-        raw: flashcards
+        id: deck.id,
+        title: parsedFlashcardDecks.length > 1 ? `${docTitle} Flashcards ${deckNum}` : `${docTitle} Flashcards`,
+        subtitle: `1 source · ${deck.cards.length} cards`,
+        date: deck.date,
+        raw: deck.cards
       });
-    }
+    });
     
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [notes, sessionQuizzes, flashcards]);
+  }, [notes, sessionQuizzes, parsedFlashcardDecks, docTitle]);
 
 
 
@@ -285,32 +441,17 @@ export default function SessionPage({ params }: SessionPageProps) {
     }
   }, [sessionId]);
 
-  // Scan messages to extract flashcards dynamically
+  // Scan messages to extract flashcards dynamically and select latest by default
   useEffect(() => {
-    const extracted: FlashcardItem[] = [];
-    messages.forEach((msg) => {
-      if (msg.role === 'assistant') {
-        const lines = msg.content.split('\n');
-        lines.forEach((line) => {
-          if (line.includes('FLASHCARD |')) {
-            const parts = line.split('|').map((p) => p.trim());
-            let topic = '';
-            let front = '';
-            let back = '';
-            parts.forEach((part) => {
-              if (part.startsWith('TOPIC:')) topic = part.replace('TOPIC:', '').trim();
-              if (part.startsWith('FRONT:')) front = part.replace('FRONT:', '').trim();
-              if (part.startsWith('BACK:')) back = part.replace('BACK:', '').trim();
-            });
-            if (front && back) {
-              extracted.push({ topic: topic || 'General', front, back });
-            }
-          }
-        });
-      }
-    });
-    setFlashcards(extracted);
-  }, [messages]);
+    if (parsedFlashcardDecks.length > 0) {
+      // Default to the latest generated deck
+      setFlashcards(parsedFlashcardDecks[parsedFlashcardDecks.length - 1].cards);
+      setCurrentFlashcardIdx(0);
+      setIsFlipped(false);
+    } else {
+      setFlashcards([]);
+    }
+  }, [parsedFlashcardDecks]);
 
   // Auto-scroll on new chat logs or stream segments using container-scoped scroll
   useEffect(() => {
@@ -579,12 +720,12 @@ export default function SessionPage({ params }: SessionPageProps) {
                 topics={topics}
                 onConceptClick={handleConceptClick}
                 className={activeMobileTab === 'sources' 
-                  ? 'flex flex-1 w-full bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left animate-in fade-in duration-200' 
-                  : 'hidden lg:flex w-64 bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left'}
+                  ? 'flex flex-1 w-full bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left animate-in fade-in duration-200' 
+                  : 'hidden lg:flex w-64 bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left'}
               />
 
               {/* PANEL 2: CENTER CANVAS (Tutor Chat Space) */}
-              <section className={`flex-1 flex flex-col bg-white border border-gray-200/80 shadow-xs rounded-3xl overflow-hidden ${
+              <section className={`flex-1 flex flex-col bg-white overflow-hidden ${
                 activeMobileTab === 'chat' ? 'flex' : 'hidden lg:flex'
               }`}>
                 
@@ -1013,7 +1154,7 @@ export default function SessionPage({ params }: SessionPageProps) {
 
             {/* PANEL 3: RIGHT PANEL (Studio / Study Modes & Notes) */}
             {(showRightPane || activeMobileTab === 'studio') && (
-              <aside className={`bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex flex-col justify-between overflow-y-auto shrink-0 z-30 text-left transition-all duration-300 ease-in-out ${
+              <aside className={`bg-white p-6 flex flex-col justify-between overflow-y-auto shrink-0 z-30 text-left transition-all duration-300 ease-in-out ${
                 activeMobileTab === 'studio' 
                   ? 'flex flex-1 w-full' 
                   : `hidden lg:flex lg:relative ${
@@ -1091,8 +1232,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                       </span>
                     </div>
                   )}
-                </div>
-
+                  </div>
                   {rightPanelTab === 'studio' && (
                     <div className="space-y-6 animate-in fade-in duration-200 flex-1 flex flex-col min-h-0">
                       
@@ -1102,72 +1242,31 @@ export default function SessionPage({ params }: SessionPageProps) {
                           Study Guide Generators
                         </h4>
                         
-                        <div className="grid grid-cols-1 gap-3">
-                          {/* Card 1: Practice Quiz */}
-                          <button
-                            onClick={() => {
-                              setIsExamSession(false);
-                              setRightPanelTab('quiz');
-                              setQuiz(null);
-                              setQuizResult(null);
-                            }}
-                            disabled={isProcessingDoc}
-                            className="p-4 rounded-2xl bg-[#E8F0FE] hover:bg-[#D2E3FC] text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px] border border-blue-150/20 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs animate-in fade-in"
-                          >
-                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-700 flex items-center justify-center group-hover:scale-105 transition-all">
-                              <FileQuestion className="w-4 h-4" />
-                            </div>
-                            <div className="flex items-center justify-between w-full mt-2">
-                              <div>
-                                <span className="font-extrabold text-xs text-brand-forest block">Practice Quiz</span>
-                                <span className="text-[9px] text-gray-400 font-medium">Generate objective scenarios, subjective essays & mixed tests up to 20 Qs</span>
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {studioCards.map((card) => (
+                            <button
+                              key={card.id}
+                              onClick={() => {
+                                if (card.isPlaceholder) {
+                                  alert(card.desc);
+                                } else {
+                                  card.onClick?.();
+                                }
+                              }}
+                              disabled={isProcessingDoc}
+                              className={`p-3.5 rounded-2xl border border-transparent ${card.bg} text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[96px] disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs`}
+                            >
+                              <div className={`w-8 h-8 rounded-xl ${card.iconBg} flex items-center justify-center group-hover:scale-105 transition-all shrink-0`}>
+                                <card.icon className="w-4 h-4" />
                               </div>
-                              <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-600 transition-colors shrink-0" />
-                            </div>
-                          </button>
-
-                          {/* Card 2: Exam Prep */}
-                          <button
-                            onClick={() => {
-                              setIsExamSession(true);
-                              setRightPanelTab('quiz');
-                              setQuiz(null);
-                              setQuizResult(null);
-                            }}
-                            disabled={isProcessingDoc}
-                            className="p-4 rounded-2xl bg-[#FEF7E0] hover:bg-[#FADF9C] text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px] border border-amber-150/20 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs animate-in fade-in"
-                          >
-                            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-all">
-                              <Award className="w-4 h-4" />
-                            </div>
-                            <div className="flex items-center justify-between w-full mt-2">
-                              <div>
-                                <span className="font-extrabold text-xs text-brand-forest block">Exam Prep</span>
-                                <span className="text-[9px] text-gray-400 font-medium">Build strict mock test simulations up to 15 Qs</span>
+                              <div className="flex items-center justify-between w-full mt-2">
+                                <span className="font-extrabold text-[11px] text-brand-forest leading-tight truncate">
+                                  {card.label}
+                                </span>
+                                <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-brand-green group-hover:translate-x-0.5 transition-all shrink-0 opacity-60 group-hover:opacity-100" />
                               </div>
-                              <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-amber-600 transition-colors shrink-0" />
-                            </div>
-                          </button>
-
-                          {/* Card 3: Flashcards */}
-                          <button
-                            onClick={() => {
-                              setRightPanelTab('flashcards');
-                            }}
-                            disabled={isProcessingDoc}
-                            className="p-4 rounded-2xl bg-[#FCE8E6] hover:bg-[#FAD2CF] text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[90px] border border-rose-150/20 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs animate-in fade-in"
-                          >
-                            <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-700 flex items-center justify-center group-hover:scale-105 transition-all">
-                              <BookOpen className="w-4 h-4" />
-                            </div>
-                            <div className="flex items-center justify-between w-full mt-2">
-                              <div>
-                                <span className="font-extrabold text-xs text-brand-forest block">Flashcards Deck</span>
-                                <span className="text-[9px] text-gray-400 font-medium">Generate active recall decks up to 15 cards</span>
-                              </div>
-                              <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-rose-600 transition-colors shrink-0" />
-                            </div>
-                          </button>
+                            </button>
+                          ))}
                         </div>
                       </div>
 
@@ -1233,14 +1332,12 @@ export default function SessionPage({ params }: SessionPageProps) {
                                     </div>
                                     <div className="text-left min-w-0">
                                       <span className="font-bold text-xs text-brand-forest block truncate group-hover/saved-item:text-brand-green transition-colors">
-                                        {isNote ? item.title : (item.raw.isExam ? 'Exam Simulation' : 'Practice Test')}
+                                        {item.title}
                                       </span>
                                       <span className="text-[9px] text-gray-400 block mt-0.5">
                                         {isNote 
-                                          ? `Custom Note · ${new Date(item.date).toLocaleDateString()}` 
-                                          : isFlashcard
-                                            ? `${item.subtitle} · Active`
-                                            : `${item.subtitle} · ${new Date(item.date).toLocaleDateString()}`}
+                                          ? `1 source · ${formatTimeAgo(item.date)}` 
+                                          : `${item.subtitle} · ${formatTimeAgo(item.date)}`}
                                       </span>
                                     </div>
                                   </div>

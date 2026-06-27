@@ -12,7 +12,7 @@ interface LeftSidebarProps {
 
 export default function LeftSidebar({ docTitle, topics, onConceptClick, className }: LeftSidebarProps) {
   return (
-    <aside className={className || "hidden lg:flex w-64 bg-white border border-gray-200/80 shadow-xs rounded-3xl p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left"}>
+    <aside className={className || "hidden lg:flex w-64 bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left"}>
       <div className="space-y-8">
         
         {/* Sources list exactly like NotebookLM */}

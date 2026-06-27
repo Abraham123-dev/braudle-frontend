@@ -248,17 +248,33 @@ function parseMarkdown(content: string): Block[] {
   return blocks;
 }
 
+// Helper to determine if a matched dollar sign expression is actual math or currency/text
+function isMathExpression(expr: string): boolean {
+  const trimmed = expr.trim();
+  if (!trimmed) return false;
+  // If it contains a backslash, it's almost certainly a LaTeX command (e.g. \rho, \frac, \phi)
+  if (trimmed.includes('\\')) return true;
+  // If it has no spaces, it is highly likely to be math (e.g. $x$, $10$, $h_z$)
+  if (!trimmed.includes(' ')) return true;
+  // If it has spaces, look for common math indicators to avoid false positives (like currency ranges)
+  return /[[\]{}_^=+\-*/<>~|]/.test(trimmed);
+}
+
 // Inline content renderer: parses math, bold, and code inside text strings
 export function renderInlineContent(text: string): React.ReactNode {
   if (!text) return '';
 
   // Extract inline math: $...$ or \(...\)
-  const parts = text.split(/(\$(?!\s)(?:[^\$]+?)(?<!\s)\$|\\\(?:.+?\\\))/g);
+  // The regex captures $ followed by any non-$ non-newline chars followed by $, 
+  // or \( followed by any chars followed by \)
+  const parts = text.split(/(\$(?:[^$\n])+?\$|\\\\?\((?:.+?)\\\\?\))/g);
 
   return parts.map((part, idx) => {
     if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
       const formula = part.slice(1, -1);
-      return <MathRenderer key={`math-${idx}`} formula={formula} block={false} />;
+      if (isMathExpression(formula)) {
+        return <MathRenderer key={`math-${idx}`} formula={formula} block={false} />;
+      }
     }
     if (part.startsWith('\\(') && part.endsWith('\\)')) {
       const formula = part.slice(2, -2);
