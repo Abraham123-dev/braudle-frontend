@@ -164,7 +164,6 @@ export default function SessionPage({ params }: SessionPageProps) {
     handleModeChange,
     handleGenerateQuiz,
     handleQuizSubmit,
-    handleFinishSession,
     handleGradeQuestion,
     docSummary,
     sessionQuizzes,
@@ -615,16 +614,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                   Show Studio
                 </button>
               )}
-              {/* Sync to Brain / Complete Session */}
-              <button
-                onClick={handleFinishSession}
-                disabled={loading}
-                className="rounded-full bg-brand-green hover:bg-brand-green/90 px-5 py-2 text-xs font-bold text-white hover:scale-[1.01] transition-all cursor-pointer shadow-sm active:scale-[0.98] disabled:opacity-40 flex items-center gap-1.5"
-                title="Sync and analyze session to update your learning brain"
-              >
-                <Brain className="w-3.5 h-3.5" />
-                <span>Sync to Brain</span>
-              </button>
+
             </div>
 
           </div>
