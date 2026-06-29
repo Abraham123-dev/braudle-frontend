@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Award, AlertCircle, MoreVertical, Trash2, X, Check } from 'lucide-react';
+import { BookOpen, AlertCircle, MoreVertical, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 
 export interface Document {
@@ -27,8 +27,8 @@ interface DocumentCardProps {
 const STAGE_LABELS: Record<string, string> = {
   file_received: 'File received',
   extracting_content: 'Extracting content',
-  identifying_concepts: 'Identifying key concepts',
-  building_learning_map: 'Building learning map',
+  identifying_concepts: 'Identifying concepts',
+  building_learning_map: 'Mapping learning path',
   preparing_tutor: 'Preparing AI tutor',
   ready: 'Ready to study!',
   failed: 'Processing failed',
@@ -45,7 +45,7 @@ export default function DocumentCard({ doc, onStartSession, onDeleteSuccess }: D
   
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close context menu on click outside
+  // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -60,61 +60,61 @@ export default function DocumentCard({ doc, onStartSession, onDeleteSuccess }: D
   const getNotebookTheme = (subject?: string) => {
     if (!subject) {
       return {
-        spineClass: 'bg-teal-700',
-        bgClass: 'bg-teal-50/20 hover:bg-teal-50/45 border-teal-100/50',
-        tagClass: 'bg-teal-600/10 text-teal-700',
-        btnClass: 'bg-teal-700 hover:bg-teal-800'
+        bgClass: 'bg-[#EEF1F8] hover:bg-[#E4E9F4] border border-[#EEF1F8]/10',
+        iconBg: 'bg-[#DFE4F2] text-brand-forest',
+        spineClass: 'bg-brand-green'
       };
     }
     const sub = subject.toLowerCase();
     
-    // Biology & Life Sciences -> Green
+    // Biology & Life Sciences -> soft emerald-green
     if (sub.includes('bio') || sub.includes('life') || sub.includes('botany') || sub.includes('zoology')) {
       return {
-        spineClass: 'bg-emerald-600',
-        bgClass: 'bg-emerald-50/20 hover:bg-emerald-50/45 border-emerald-100/50',
-        tagClass: 'bg-emerald-600/10 text-emerald-700',
-        btnClass: 'bg-emerald-600 hover:bg-emerald-700'
+        bgClass: 'bg-[#ECFDFC]/75 hover:bg-[#E4FBF9] border border-[#ECFDFC]/10',
+        iconBg: 'bg-[#D6F7F5] text-brand-green',
+        spineClass: 'bg-emerald-500'
       };
     }
     
-    // Chemistry, Physics & General Science -> Indigo
+    // Chemistry, Physics & General Science -> soft purple-pink
     if (sub.includes('chem') || sub.includes('phys') || sub.includes('science') || sub.includes('nature')) {
       return {
-        spineClass: 'bg-indigo-600',
-        bgClass: 'bg-indigo-50/20 hover:bg-indigo-50/45 border-indigo-100/50',
-        tagClass: 'bg-indigo-600/10 text-indigo-700',
-        btnClass: 'bg-indigo-600 hover:bg-indigo-700'
+        bgClass: 'bg-[#F5EFF3]/75 hover:bg-[#F0E8EC] border border-[#F5EFF3]/10',
+        iconBg: 'bg-[#EADEE6] text-rose-500',
+        spineClass: 'bg-indigo-500'
       };
     }
     
-    // Mathematics, Economics & Finance -> Amber
+    // Mathematics, Economics & Finance -> soft amber-orange
     if (sub.includes('math') || sub.includes('calculus') || sub.includes('econ') || sub.includes('finance') || sub.includes('accounting')) {
       return {
-        spineClass: 'bg-amber-500',
-        bgClass: 'bg-amber-50/15 hover:bg-amber-50/35 border-amber-100/40',
-        tagClass: 'bg-amber-600/10 text-amber-700',
-        btnClass: 'bg-amber-500 hover:bg-amber-600'
+        bgClass: 'bg-[#FFF9E6]/75 hover:bg-[#FFF3CD] border border-[#FFF9E6]/10',
+        iconBg: 'bg-[#FFF0B3] text-amber-600',
+        spineClass: 'bg-amber-500'
       };
     }
     
-    // History, Arts, Literature -> Violet
+    // History, Arts, Literature -> soft violet-blue
     if (sub.includes('hist') || sub.includes('art') || sub.includes('lit') || sub.includes('lang') || sub.includes('english') || sub.includes('social')) {
       return {
-        spineClass: 'bg-violet-600',
-        bgClass: 'bg-violet-50/20 hover:bg-violet-50/45 border-violet-100/50',
-        tagClass: 'bg-violet-600/10 text-violet-700',
-        btnClass: 'bg-violet-600 hover:bg-violet-700'
+        bgClass: 'bg-[#EEF1F8]/75 hover:bg-[#E4E9F4] border border-[#EEF1F8]/10',
+        iconBg: 'bg-[#DFE4F2] text-[#5F6368]',
+        spineClass: 'bg-purple-500'
       };
     }
 
-    // Default / General -> Teal
+    // Default -> soft purple-blue
     return {
-      spineClass: 'bg-teal-700',
-      bgClass: 'bg-teal-50/20 hover:bg-teal-50/45 border-teal-100/50',
-      tagClass: 'bg-teal-600/10 text-teal-700',
-      btnClass: 'bg-teal-700 hover:bg-teal-800'
+      bgClass: 'bg-[#EEF1F8] hover:bg-[#E4E9F4] border border-[#EEF1F8]/10',
+      iconBg: 'bg-[#DFE4F2] text-brand-forest',
+      spineClass: 'bg-brand-green'
     };
+  };
+
+  const handleCardClick = () => {
+    if (isReady) {
+      onStartSession(doc.id || doc._id || '', 'teach');
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -145,104 +145,96 @@ export default function DocumentCard({ doc, onStartSession, onDeleteSuccess }: D
   const theme = getNotebookTheme(doc.subject);
 
   return (
-    <div className={`relative bg-white border border-gray-100 ${theme.bgClass} rounded-3xl pl-9 pr-6 py-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[220px] overflow-hidden group`}>
-      
-      {/* ── Visual Notebook Spine & Cover Crease ── */}
-      <div className={`absolute left-0 top-0 bottom-0 w-3.5 ${theme.spineClass} z-10`} />
-      <div className="absolute left-4.5 top-0 bottom-0 w-px bg-black/5 z-10" />
+    <div 
+      onClick={handleCardClick}
+      className={`group relative flex flex-col justify-between p-5 rounded-2xl transition-all duration-200 cursor-pointer select-none aspect-[1.35/1] sm:aspect-[1.4/1] shadow-2xs hover:shadow-xs hover:scale-[1.01] ${theme.bgClass}`}
+    >
+      {/* Top Row: Icon & Context Menu */}
+      <div className="flex justify-between items-start w-full relative z-10">
+        <div className={`w-9.5 h-9.5 rounded-xl ${theme.iconBg} flex items-center justify-center shrink-0`}>
+          {doc.subject && (doc.subject.toLowerCase().includes('phys') || doc.subject.toLowerCase().includes('chem')) ? (
+            <svg className="w-5 h-5 text-orange-500 fill-current" viewBox="0 0 24 24">
+              <path d="M11.5 2C11.5 2 12.3 8.3 12.3 8.3L19 9.5L12.3 10.7L11.5 17L10.7 10.7L4 9.5L10.7 8.3L11.5 2Z" />
+            </svg>
+          ) : (
+            <BookOpen className="w-4.5 h-4.5 text-[#5F6368]" />
+          )}
+        </div>
 
-      <div>
-        {/* Top Header: tags & context action */}
-        <div className="flex justify-between items-start mb-4 relative z-20">
-          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${theme.tagClass}`}>
-            {doc.subject || 'General'}
-          </span>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-gray-400 font-semibold">
-              {new Date(doc.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-            </span>
-            
-            {/* Options Trigger (Three dots) */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(!menuOpen);
-                  setConfirmDelete(false);
-                }}
-                className="p-1 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-brand-forest transition-colors cursor-pointer"
-                title="Options"
-              >
-                <MoreVertical className="w-3.5 h-3.5" />
-              </button>
+        <div className="relative" ref={menuRef} onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen(!menuOpen);
+              setConfirmDelete(false);
+            }}
+            className="p-1.5 rounded-full hover:bg-black/5 text-gray-500 hover:text-brand-forest transition-all cursor-pointer animate-in fade-in"
+            title="Options"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
 
-              {/* Context Dropdown */}
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 z-30 animate-in fade-in duration-100">
-                  {!confirmDelete ? (
+          {menuOpen && (
+            <div className="absolute right-0 mt-1.5 w-44 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 z-30 animate-in fade-in slide-in-from-top-2 duration-100">
+              {!confirmDelete ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(true);
+                  }}
+                  className="w-full px-3 py-1.5 text-xs text-rose-600 font-bold hover:bg-rose-50 flex items-center gap-2 text-left cursor-pointer"
+                  disabled={deleting}
+                >
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                  Delete Notebook
+                </button>
+              ) : (
+                <div className="px-3 py-1.5 space-y-2">
+                  <p className="text-[10px] font-bold text-gray-400 text-left">Confirm Deletion?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex-1 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] flex items-center justify-center cursor-pointer"
+                    >
+                      {deleting ? '...' : 'Yes'}
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setConfirmDelete(true);
+                        setConfirmDelete(false);
                       }}
-                      className="w-full px-3 py-1.5 text-xs text-rose-600 font-bold hover:bg-rose-50 flex items-center gap-2 text-left cursor-pointer"
                       disabled={deleting}
+                      className="flex-1 py-1 rounded border border-gray-100 hover:bg-gray-50 text-gray-500 font-bold text-[10px] flex items-center justify-center cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                      Delete Notebook
+                      No
                     </button>
-                  ) : (
-                    <div className="px-3 py-1.5 space-y-2">
-                      <p className="text-[10px] font-bold text-gray-400 text-left">Confirm Deletion?</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleDelete}
-                          disabled={deleting}
-                          className="flex-1 py-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] flex items-center justify-center cursor-pointer"
-                        >
-                          {deleting ? '...' : 'Yes'}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmDelete(false);
-                          }}
-                          disabled={deleting}
-                          className="flex-1 py-1 rounded border border-gray-100 hover:bg-gray-50 text-gray-500 font-bold text-[10px] flex items-center justify-center cursor-pointer"
-                        >
-                          No
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Title */}
-        <h3 className="text-sm font-bold text-brand-forest mb-2 line-clamp-2 leading-snug text-left" title={doc.title}>
+      {/* Bottom Row: Title and Details */}
+      <div className="text-left w-full mt-4 min-w-0">
+        <h3 className="text-sm font-bold text-brand-forest leading-snug truncate pr-2 group-hover:text-brand-green transition-colors duration-200" title={doc.title}>
           {doc.title}
         </h3>
-
-        {/* Subtext info */}
+        
         {isReady && (
-          <p className="text-[11px] text-gray-400 font-medium text-left">
-            {doc.topics && doc.topics.length > 0 
-              ? `${doc.topics.length} study` 
-              : `${doc.totalChunks || 1} study`}
+          <p className="text-[10px] text-gray-400 font-semibold mt-1">
+            {new Date(doc.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {doc.topics && doc.topics.length > 0 ? `${doc.topics.length} source topics` : `${doc.totalChunks || 1} sources`}
           </p>
         )}
 
-        {/* Processing State */}
         {isProcessing && (
-          <div className="space-y-2 mt-4 text-left">
-            <p className="text-[10px] font-bold text-brand-forest/50 flex items-center gap-1.5">
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-[9px] font-bold text-brand-green/80 animate-pulse">
               {getStageText()}
-            </p>
-            <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+            </span>
+            <div className="w-16 bg-black/5 h-1 rounded-full overflow-hidden shrink-0">
               <div 
                 className={`h-full transition-all duration-300 ${theme.spineClass}`}
                 style={{ 
@@ -258,25 +250,11 @@ export default function DocumentCard({ doc, onStartSession, onDeleteSuccess }: D
         )}
 
         {isFailed && (
-          <div className="flex items-center gap-1.5 text-rose-600 text-[10px] font-bold mt-4 text-left">
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>Analysis failed</span>
-          </div>
+          <span className="text-rose-600 text-[9px] font-bold mt-1.5 block">
+            Analysis failed
+          </span>
         )}
       </div>
-
-      {/* Quick Launch Buttons (Only visible when ready) */}
-      {isReady && (
-        <div className="mt-5 pt-4 border-t border-gray-50/50">
-          <button
-            type="button"
-            onClick={() => onStartSession(doc.id || doc._id || '', 'teach')}
-            className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white transition-all cursor-pointer active:scale-[0.98] ${theme.btnClass}`}
-          >
-            <BookOpen className="w-3.5 h-3.5" /> Study
-          </button>
-        </div>
-      )}
     </div>
   );
 }

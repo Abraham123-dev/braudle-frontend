@@ -401,7 +401,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
           case 'table':
             return (
-              <div key={idx} className="overflow-x-auto my-5 border border-zinc-150 rounded-2xl shadow-3xs">
+              <div key={idx} className="overflow-x-auto my-5 border border-zinc-200 rounded-2xl shadow-3xs">
                 <table className="min-w-full divide-y divide-zinc-200">
                   <thead className="bg-zinc-50">
                     <tr>

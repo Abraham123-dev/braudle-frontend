@@ -25,18 +25,7 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
   const { user, setUser } = useStore();
   
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Fetch profile on settings open to display up-to-date data
-  useEffect(() => {
-    if (settingsOpen) {
-      api.get('/profile')
-        .then((res) => setProfile(res))
-        .catch(() => {});
-    }
-  }, [settingsOpen]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -54,7 +43,6 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
     await auth.logout();
     setUser(null);
   };
-
   const getInitials = (name: string) => {
     if (!name) return 'S';
     return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -67,10 +55,7 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
           
           {/* Logo & Navigation */}
           <div className="flex items-center gap-6">
-            <Link href="/home" className="font-semibold text-xl tracking-tight text-brand-green flex items-center gap-2">
-              <span className="w-6 h-6 bg-brand-green rounded flex items-center justify-center rotate-3">
-                <span className="w-2.5 h-2.5 bg-brand-yellow rounded-sm rotate-45" />
-              </span>
+            <Link href="/home" className="font-semibold text-xl tracking-tight text-brand-green">
               Braudle
             </Link>
 
@@ -159,7 +144,7 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
                     <button
                       onClick={() => {
                         setDropdownOpen(false);
-                        setSettingsOpen(true);
+                        router.push('/settings');
                       }}
                       className="w-full px-4 py-2 text-xs font-medium text-gray-500 hover:text-brand-forest hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer text-left"
                     >
@@ -184,130 +169,6 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
           </div>
         </div>
       </header>
-
-      {/* Settings Modal */}
-      {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-charcoal/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-gray-100 max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-base text-brand-forest">Settings & Profile</h3>
-                <p className="text-[10px] text-gray-400">Your personalized Braudle configuration</p>
-              </div>
-              <button 
-                onClick={() => setSettingsOpen(false)}
-                className="p-1.5 rounded-full hover:bg-gray-50 text-gray-400 hover:text-brand-forest transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-              
-              {/* Profile Card */}
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                <div className="w-14 h-14 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center font-bold text-lg border border-brand-green/20">
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    getInitials(user?.name || '')
-                  )}
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-brand-forest">{user?.name}</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">{user?.email}</p>
-                  <span className="inline-block mt-2 px-2 py-0.5 rounded bg-brand-forest text-white text-[9px] uppercase tracking-wider font-semibold">
-                    {user?.role || 'Student'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Learning Metrics */}
-              {profile && (
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-3 border border-gray-100 rounded-xl text-center">
-                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold block mb-1">XP Points</span>
-                    <span className="font-bold text-sm text-brand-forest">{profile.xp}</span>
-                  </div>
-                  <div className="p-3 border border-gray-100 rounded-xl text-center">
-                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold block mb-1">Current Streak</span>
-                    <span className="font-bold text-sm text-brand-forest">🔥 {profile.streak} days</span>
-                  </div>
-                  <div className="p-3 border border-gray-100 rounded-xl text-center">
-                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold block mb-1">Avg Score</span>
-                    <span className="font-bold text-sm text-brand-forest">🎯 {profile.averageScore}%</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Preferences Settings */}
-              <div className="space-y-4">
-                <h4 className="font-bold text-xs text-brand-forest uppercase tracking-wider border-b border-gray-50 pb-1.5">
-                  Tutoring Configuration
-                </h4>
-
-                <div className="space-y-3.5">
-                  {/* Goal */}
-                  <div className="flex items-start gap-3">
-                    <Compass className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs font-bold text-brand-forest block">Academic Goal</span>
-                      <span className="text-xs text-gray-500 block mt-0.5">
-                        {profile?.goal || 'No goal set yet. Complete onboarding.'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Level */}
-                  <div className="flex items-start gap-3">
-                    <Award className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs font-bold text-brand-forest block">Tutoring Level</span>
-                      <span className="text-xs text-gray-500 block mt-0.5 capitalize">
-                        {profile?.level || 'Intermediate'} {profile?.studyLevel ? `(${profile.studyLevel})` : ''}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Style */}
-                  <div className="flex items-start gap-3">
-                    <Book className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs font-bold text-brand-forest block">Preferred Learning Style</span>
-                      <span className="text-xs text-gray-500 block mt-0.5 capitalize">
-                        {profile?.learningStyle?.replace('_', ' ') || 'Interactive explanation'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Data and Security */}
-              <div className="space-y-2.5">
-                <h4 className="font-bold text-xs text-brand-forest uppercase tracking-wider border-b border-gray-50 pb-1.5">
-                  Data & Protection
-                </h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
-                  Your files are secure in cloud storage. Tutoring models verify concepts privately. No data is sold or shared.
-                </p>
-              </div>
-
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-50 flex justify-end">
-              <button
-                onClick={() => setSettingsOpen(false)}
-                className="px-5 py-2.5 bg-brand-forest text-white text-xs font-bold rounded-xl hover:bg-brand-green transition-colors cursor-pointer"
-              >
-                Close Settings
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

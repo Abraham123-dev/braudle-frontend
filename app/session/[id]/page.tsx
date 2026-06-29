@@ -3,8 +3,9 @@
 import React, { useRef, useEffect, use } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useSession } from '@/hooks/useSession';
+import { api } from '@/lib/api';
 import PracticePanel from '@/components/quiz/PracticePanel';
-import MarkdownRenderer from '@/components/tutor/MarkdownRenderer';
+import MarkdownRenderer, { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
 import LeftSidebar from '@/components/tutor/LeftSidebar';
 import ConceptExplanationModal from '@/components/tutor/ConceptExplanationModal';
 import { AddNoteModal, EditNoteModal } from '@/components/tutor/SessionNotesModals';
@@ -12,13 +13,14 @@ import {
   BookOpen, 
   Award, 
   ArrowLeft, 
+  ArrowRight,
   Send, 
   AlertCircle,
   FileText,
   ChevronRight,
   FileQuestion,
-  Plus,
   Trash2,
+  MoreVertical,
   X,
   Brain,
   Sparkles,
@@ -180,12 +182,50 @@ export default function SessionPage({ params }: SessionPageProps) {
   const [inlineQuizAnswers, setInlineQuizAnswers] = React.useState<Record<number, string>>({});
 
   // Tab State for Right Panel
-  const [rightPanelTab, setRightPanelTab] = React.useState<'studio' | 'quiz' | 'flashcards'>('studio');
+  const [rightPanelTab, setRightPanelTab] = React.useState<'studio' | 'quiz' | 'flashcards' | 'summary'>('studio');
+  const [detailedSummary, setDetailedSummary] = React.useState('');
+  const [loadingSummary, setLoadingSummary] = React.useState(false);
+  const [summaryError, setSummaryError] = React.useState('');
+
+  const fetchDetailedSummary = async () => {
+    setLoadingSummary(true);
+    setSummaryError('');
+    try {
+      const res = await api.get<any>(`/sessions/${sessionId}/detailed-summary`);
+      if (res.detailedSummary) {
+        setDetailedSummary(res.detailedSummary);
+      } else {
+        throw new Error('Empty summary returned.');
+      }
+    } catch (err: any) {
+      console.error('Failed to get summary:', err);
+      setSummaryError(err.message || 'Failed to generate summary.');
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (rightPanelTab === 'summary' && !detailedSummary) {
+      fetchDetailedSummary();
+    }
+  }, [rightPanelTab]);
+
   const [activeMobileTab, setActiveMobileTab] = React.useState<'sources' | 'chat' | 'studio'>('chat');
   const [isExamSession, setIsExamSession] = React.useState(false);
   const [flashcardCount, setFlashcardCount] = React.useState(15);
   const [flashcardFocus, setFlashcardFocus] = React.useState('');
   const [isGeneratingFlashcards, setIsGeneratingFlashcards] = React.useState(false);
+  const [flashcardLimitError, setFlashcardLimitError] = React.useState<string | null>(null);
+  const [selectedFlashcardDeckId, setSelectedFlashcardDeckId] = React.useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }));
+  };
 
   const hasChatted = messages.some((msg) => msg.role === 'user');
 
@@ -281,51 +321,6 @@ export default function SessionPage({ params }: SessionPageProps) {
   // Grid items configuration matching NotebookLM
   const studioCards = [
     {
-      id: 'audio',
-      label: 'Audio Overview',
-      desc: 'Audio overview generation is coming soon!',
-      bg: 'bg-indigo-50/60 hover:bg-indigo-100/50 border-indigo-150/10',
-      iconBg: 'bg-indigo-500/10 text-indigo-700',
-      icon: Headphones,
-      isPlaceholder: true
-    },
-    {
-      id: 'slides',
-      label: 'Slide Deck',
-      desc: 'Slide deck generation is coming soon!',
-      bg: 'bg-amber-50/60 hover:bg-amber-100/50 border-amber-150/10',
-      iconBg: 'bg-amber-500/10 text-amber-700',
-      icon: Presentation,
-      isPlaceholder: true
-    },
-    {
-      id: 'video',
-      label: 'Video Overview',
-      desc: 'Video overview generation is coming soon!',
-      bg: 'bg-green-50/60 hover:bg-green-100/50 border-green-150/10',
-      iconBg: 'bg-green-500/10 text-green-700',
-      icon: Video,
-      isPlaceholder: true
-    },
-    {
-      id: 'mindmap',
-      label: 'Mind Map',
-      desc: 'Interactive Mind Mapping is coming soon!',
-      bg: 'bg-purple-50/60 hover:bg-purple-100/50 border-purple-150/10',
-      iconBg: 'bg-purple-500/10 text-purple-700',
-      icon: GitBranch,
-      isPlaceholder: true
-    },
-    {
-      id: 'reports',
-      label: 'Reports',
-      desc: 'Detailed learning reports are coming soon!',
-      bg: 'bg-gray-50 hover:bg-gray-100 border-gray-150/10',
-      iconBg: 'bg-gray-500/10 text-gray-700',
-      icon: FileBarChart,
-      isPlaceholder: true
-    },
-    {
       id: 'flashcards',
       label: 'Flashcards',
       bg: 'bg-rose-50/60 hover:bg-rose-100/50 border-rose-150/10',
@@ -365,13 +360,15 @@ export default function SessionPage({ params }: SessionPageProps) {
       }
     },
     {
-      id: 'datatable',
-      label: 'Data Table',
-      desc: 'Structured Data Tables are coming soon!',
-      bg: 'bg-blue-50/60 hover:bg-blue-100/50 border-blue-150/10',
-      iconBg: 'bg-blue-500/10 text-blue-700',
-      icon: Table,
-      isPlaceholder: true
+      id: 'summary',
+      label: 'PDF Summary',
+      bg: 'bg-emerald-50/60 hover:bg-emerald-100/50 border-emerald-150/10',
+      iconBg: 'bg-emerald-500/10 text-emerald-700',
+      icon: FileText,
+      isPlaceholder: false,
+      onClick: () => {
+        setRightPanelTab('summary');
+      }
     }
   ];
 
@@ -379,7 +376,7 @@ export default function SessionPage({ params }: SessionPageProps) {
   const combinedItems = React.useMemo(() => {
     const list: any[] = [];
     
-    // Add notes
+    // Add notes (each is independent)
     notes.forEach(note => {
       list.push({
         type: 'note',
@@ -390,30 +387,64 @@ export default function SessionPage({ params }: SessionPageProps) {
       });
     });
     
-    // Add quizzes
-    sessionQuizzes.forEach(q => {
+    // Group quizzes (q.isExam === false)
+    const quizzes = sessionQuizzes.filter(q => !q.isExam);
+    if (quizzes.length > 0) {
+      quizzes.sort((a, b) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
       list.push({
-        type: 'quiz',
-        id: q._id,
-        title: q.isExam ? `${docTitle} Exam` : `${docTitle} Quiz`,
-        subtitle: `1 source · ${q.totalQuestions} questions · ${q.score !== undefined ? `Scored ${q.score}%` : 'In Progress'}`,
-        date: q.submittedAt || q.createdAt,
-        raw: q
+        type: 'quiz-group',
+        id: 'group-quiz',
+        title: `${docTitle} Quizzes`,
+        subtitle: `1 source · ${quizzes.length} ${quizzes.length === 1 ? 'attempt' : 'attempts'}`,
+        date: quizzes[0].submittedAt || quizzes[0].createdAt,
+        items: quizzes.map((q, idx) => ({
+          id: q._id,
+          title: `Attempt ${quizzes.length - idx} (${q.totalQuestions} Questions)`,
+          subtitle: `${q.score !== undefined ? `Scored ${q.score}%` : 'In Progress'}`,
+          date: q.submittedAt || q.createdAt,
+          raw: q
+        }))
       });
-    });
+    }
 
-    // Add active flashcards decks
-    parsedFlashcardDecks.forEach((deck, idx) => {
-      const deckNum = idx + 1;
+    // Group exams (q.isExam === true)
+    const exams = sessionQuizzes.filter(q => q.isExam);
+    if (exams.length > 0) {
+      exams.sort((a, b) => new Date(b.submittedAt || b.createdAt).getTime() - new Date(a.submittedAt || a.createdAt).getTime());
       list.push({
-        type: 'flashcards',
-        id: deck.id,
-        title: parsedFlashcardDecks.length > 1 ? `${docTitle} Flashcards ${deckNum}` : `${docTitle} Flashcards`,
-        subtitle: `1 source · ${deck.cards.length} cards`,
-        date: deck.date,
-        raw: deck.cards
+        type: 'exam-group',
+        id: 'group-exam',
+        title: `${docTitle} Exams`,
+        subtitle: `1 source · ${exams.length} ${exams.length === 1 ? 'attempt' : 'attempts'}`,
+        date: exams[0].submittedAt || exams[0].createdAt,
+        items: exams.map((q, idx) => ({
+          id: q._id,
+          title: `Attempt ${exams.length - idx} (${q.totalQuestions} Questions)`,
+          subtitle: `${q.score !== undefined ? `Scored ${q.score}%` : 'In Progress'}`,
+          date: q.submittedAt || q.createdAt,
+          raw: q
+        }))
       });
-    });
+    }
+
+    // Group flashcard decks
+    if (parsedFlashcardDecks.length > 0) {
+      const decks = [...parsedFlashcardDecks].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      list.push({
+        type: 'flashcards-group',
+        id: 'group-flashcards',
+        title: `${docTitle} Flashcards`,
+        subtitle: `1 source · ${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`,
+        date: decks[0].date,
+        items: decks.map((deck, idx) => ({
+          id: deck.id,
+          title: `Deck ${decks.length - idx} (${deck.cards.length} Cards)`,
+          subtitle: `${formatTimeAgo(deck.date)}`,
+          date: deck.date,
+          raw: deck.cards
+        }))
+      });
+    }
     
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [notes, sessionQuizzes, parsedFlashcardDecks, docTitle]);
@@ -443,14 +474,12 @@ export default function SessionPage({ params }: SessionPageProps) {
   // Scan messages to extract flashcards dynamically and select latest by default
   useEffect(() => {
     if (parsedFlashcardDecks.length > 0) {
-      // Default to the latest generated deck
-      setFlashcards(parsedFlashcardDecks[parsedFlashcardDecks.length - 1].cards);
-      setCurrentFlashcardIdx(0);
-      setIsFlipped(false);
+      const activeDeck = parsedFlashcardDecks.find(d => d.id === selectedFlashcardDeckId) || parsedFlashcardDecks[parsedFlashcardDecks.length - 1];
+      setFlashcards(activeDeck.cards);
     } else {
       setFlashcards([]);
     }
-  }, [parsedFlashcardDecks]);
+  }, [parsedFlashcardDecks, selectedFlashcardDeckId]);
 
   // Auto-scroll on new chat logs or stream segments using container-scoped scroll
   useEffect(() => {
@@ -516,6 +545,31 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   const handleCreateCustomFlashcards = async (count: number, focus: string) => {
     if (isStreaming) return;
+
+    // Check limit
+    const isPro = localStorage.getItem('braudle_is_pro') === 'true';
+    if (!isPro) {
+      const lastGenTimeStr = localStorage.getItem('braudle_last_generated_flashcards');
+      if (lastGenTimeStr) {
+        const lastGenTime = Number(lastGenTimeStr);
+        const cooldown = 2 * 24 * 60 * 60 * 1000;
+        if (Date.now() - lastGenTime < cooldown) {
+          const remainingMs = cooldown - (Date.now() - lastGenTime);
+          const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+          let remainingStr = '';
+          if (remainingHours >= 24) {
+            const days = Math.floor(remainingHours / 24);
+            const hours = remainingHours % 24;
+            remainingStr = `${days}d ${hours}h`;
+          } else {
+            remainingStr = `${remainingHours}h`;
+          }
+          setFlashcardLimitError(remainingStr);
+          return;
+        }
+      }
+    }
+
     setIsGeneratingFlashcards(true);
     try {
       await handleModeChange('flashcards', true);
@@ -526,6 +580,8 @@ export default function SessionPage({ params }: SessionPageProps) {
       setCurrentFlashcardIdx(0);
       setIsFlipped(false);
       
+      localStorage.setItem('braudle_last_generated_flashcards', Date.now().toString());
+
       setInput(userText);
       setTimeout(() => {
         const sendBtn = document.getElementById('chat-send-btn');
@@ -569,8 +625,6 @@ export default function SessionPage({ params }: SessionPageProps) {
       setRightPanelTab('flashcards');
       setActiveMobileTab('studio');
       setShowRightPane(true);
-      setInput('');
-      return;
     }
 
     handleSendMessage(e);
@@ -622,9 +676,9 @@ export default function SessionPage({ params }: SessionPageProps) {
 
         {loading ? (
           /* Skeleton Workspace Layout */
-          <div className="flex-1 flex relative overflow-hidden animate-pulse select-none">
+          <div className="flex-1 flex flex-col lg:flex-row bg-[#EEF2F6] lg:p-4 lg:gap-4 overflow-hidden animate-pulse select-none">
             {/* Left Sidebar Skeleton */}
-            <aside className="hidden lg:flex w-72 border-r border-gray-100 bg-white p-6 flex-col justify-between shrink-0">
+            <aside className="hidden lg:flex w-72 bg-white p-6 flex-col justify-between shrink-0 rounded-3xl border border-gray-200/50 shadow-2xs">
               <div className="space-y-8">
                 <div className="space-y-3">
                   <div className="h-3 w-20 bg-gray-100 rounded-full" />
@@ -646,7 +700,7 @@ export default function SessionPage({ params }: SessionPageProps) {
             </aside>
 
             {/* Center Chat Skeleton */}
-            <section className="flex-1 flex flex-col bg-white overflow-hidden">
+            <section className="flex-1 flex flex-col bg-white overflow-hidden rounded-3xl border border-gray-200/50 shadow-2xs">
               <div className="border-b border-gray-50 py-3.5 px-6">
                 <div className="h-3 w-32 bg-gray-100 rounded-full" />
               </div>
@@ -711,16 +765,20 @@ export default function SessionPage({ params }: SessionPageProps) {
                 onConceptClick={handleConceptClick}
                 className={activeMobileTab === 'sources' 
                   ? 'flex flex-1 w-full bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left animate-in fade-in duration-200' 
-                  : 'hidden lg:flex w-64 bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left'}
+                  : `${isExpandedRightPane ? 'lg:hidden' : 'hidden lg:flex'} w-64 bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left lg:rounded-3xl lg:border lg:border-zinc-200/50 lg:shadow-2xs`}
               />
 
               {/* PANEL 2: CENTER CANVAS (Tutor Chat Space) */}
-              <section className={`flex-1 flex flex-col bg-white overflow-hidden ${
-                activeMobileTab === 'chat' ? 'flex' : 'hidden lg:flex'
+              <section className={`flex-1 flex flex-col bg-white overflow-hidden lg:rounded-3xl lg:border lg:border-zinc-200/50 lg:shadow-2xs ${
+                isExpandedRightPane
+                  ? 'hidden'
+                  : activeMobileTab === 'chat' 
+                    ? 'flex flex-1 w-full' 
+                    : 'hidden lg:flex'
               }`}>
                 
                 {/* Top Greeting Ribbon */}
-                <div className="border-b border-zinc-150 py-3.5 px-6 text-left bg-gray-50/50">
+                <div className="border-b border-zinc-200/60 py-3.5 px-6 text-left bg-gray-50/50">
                   <span className="text-xs text-brand-forest/60 font-semibold uppercase tracking-wider">
                     {timeGreeting}
                   </span>
@@ -759,7 +817,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                     
                     <div className="flex items-center justify-between mb-5">
                       {/* Orange Spark Icon */}
-                      <div className="w-10 h-10 rounded-2xl bg-white text-amber-500 flex items-center justify-center shadow-2xs border border-zinc-150/30">
+                      <div className="w-10 h-10 rounded-2xl bg-white text-amber-500 flex items-center justify-center shadow-2xs border border-zinc-200/30">
                         <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                           <path d="M11.5 2C11.5 2 12.3 8.3 12.3 8.3L19 9.5L12.3 10.7L11.5 17L10.7 10.7L4 9.5L10.7 8.3L11.5 2Z" />
                           <path d="M17.5 14C17.5 14 17.9 17.15 17.9 17.15L21.25 17.75L17.9 18.35L17.5 21.5L17.1 18.35L13.75 17.75L17.1 17.15L17.5 14Z" />
@@ -854,7 +912,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                         {msg.content}
                       </div>
                     ) : msg.role === 'user' ? (
-                      <div className="max-w-[75%] rounded-2xl rounded-tr-none px-4 py-3 text-[14px] sm:text-[15px] font-medium leading-relaxed bg-[#E9EEF6] text-brand-forest shadow-3xs border border-[#E9EEF6]/10">
+                      <div className="max-w-[75%] rounded-3xl px-5 py-3.5 text-[14px] sm:text-[15px] font-medium leading-relaxed bg-[#E9EEF6] text-brand-forest shadow-2xs border border-[#E9EEF6]/5">
                         {msg.content.split('\n').map((line, idx) => (
                           <p key={idx} className={idx > 0 ? 'mt-1.5' : ''}>
                             {line}
@@ -862,17 +920,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                         ))}
                       </div>
                     ) : (
-                      <div className="w-full text-brand-forest py-4 text-sm text-left transition-all">
-                        {/* Identity Badge */}
-                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-150/45">
-                          <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
-                            <Sparkles className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider">
-                            Braudle Tutor
-                          </span>
-                        </div>
-                        
+                      <div className="w-full text-brand-forest py-2.5 text-sm text-left transition-all">
                         <MarkdownRenderer content={msg.content} />
 
                         {msg.inlineQuiz && (
@@ -948,51 +996,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                           </div>
                         )}
                         
-                        {index === 0 && (
-                          <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {[
-                              { id: 'understand', label: 'Understand', icon: BookOpen },
-                              { id: 'review', label: 'Review', icon: FileText },
-                              { id: 'practice', label: 'Practice', icon: FileQuestion },
-                              { id: 'prepare', label: 'Prepare', icon: Award },
-                              { id: 'ask', label: 'Ask Anything', icon: Send },
-                            ].map((m) => {
-                              const IconComponent = m.icon;
-                              return (
-                                <button
-                                  key={m.id}
-                                  onClick={() => {
-                                    if (m.id === 'practice') {
-                                      setIsExamSession(false);
-                                      setQuiz(null);
-                                      setQuizResult(null);
-                                      setRightPanelTab('quiz');
-                                      setActiveMobileTab('studio');
-                                      setShowRightPane(true);
-                                    } else if (m.id === 'prepare') {
-                                      setIsExamSession(true);
-                                      setQuiz(null);
-                                      setQuizResult(null);
-                                      setRightPanelTab('quiz');
-                                      setActiveMobileTab('studio');
-                                      setShowRightPane(true);
-                                    } else {
-                                      handleModeChange(m.id);
-                                    }
-                                  }}
-                                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all cursor-pointer active:scale-95 ${
-                                    activeMode === m.id
-                                      ? 'bg-brand-green text-white border-brand-green'
-                                      : 'bg-gray-50 hover:bg-gray-100 text-brand-forest border-gray-150'
-                                  }`}
-                                >
-                                  <IconComponent className="w-3.5 h-3.5 shrink-0" />
-                                  <span>{m.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
+
                       </div>
                     )}
                   </div>
@@ -1003,7 +1007,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                   <div className="flex justify-start w-full">
                     <div className="w-full text-brand-forest py-4 text-sm text-left">
                       {/* Identity Badge */}
-                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-150/45">
+                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-200/45">
                         <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
                           <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                         </div>
@@ -1022,7 +1026,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                   <div className="flex justify-start w-full">
                     <div className="w-full text-brand-forest py-4 text-sm text-left">
                       {/* Identity Badge */}
-                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-150/45">
+                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-200/45">
                         <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
                           <Sparkles className="w-3.5 h-3.5 animate-spin" />
                         </div>
@@ -1110,10 +1114,10 @@ export default function SessionPage({ params }: SessionPageProps) {
                   )}
 
                 {/* Centered pill-shaped Prompt Input exactly like NotebookLM */}
-                <form onSubmit={handleSendMessageWrapper} className={`relative flex items-center border rounded-full px-4 py-2 sm:px-5 sm:py-2.5 transition-all gap-3 shadow-2xs ${
+                <form onSubmit={handleSendMessageWrapper} className={`relative flex items-center border rounded-full px-4.5 py-2.5 sm:px-5 sm:py-3 transition-all gap-3.5 shadow-2xs ${
                   isProcessingDoc 
                     ? 'bg-gray-100/50 border-gray-150 cursor-not-allowed opacity-60' 
-                    : 'bg-gray-50 border-gray-200 focus-within:border-brand-green focus-within:bg-white focus-within:ring-1 focus-within:ring-brand-green'
+                    : 'bg-white border-gray-250 focus-within:border-brand-green focus-within:ring-1 focus-within:ring-brand-green'
                 }`}>
                   <input
                     type="text"
@@ -1121,37 +1125,45 @@ export default function SessionPage({ params }: SessionPageProps) {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder={isProcessingDoc ? "Tutor is warming up..." : "Start typing..."}
-                    className="flex-1 bg-transparent border-none text-base sm:text-xs text-brand-forest focus:outline-none placeholder-gray-400 font-medium py-1.5 disabled:cursor-not-allowed"
+                    className="flex-1 bg-transparent border-none text-base sm:text-xs text-brand-forest focus:outline-none placeholder-gray-400/90 font-medium py-1 disabled:cursor-not-allowed"
                     disabled={isStreaming || isProcessingDoc}
                   />
-                  <div className="flex items-center gap-2.5 shrink-0 select-none">
-                    <span className="bg-gray-100/80 text-[10px] text-gray-400 font-bold px-2.5 py-1 rounded-full border border-gray-200/50">
-                      1 source
-                    </span>
+                  <div className="flex items-center gap-3 shrink-0 select-none">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-55 border border-gray-200 text-gray-500 text-[10px] font-bold select-none cursor-default shrink-0">
+                      <FileText className="w-3.5 h-3.5 text-gray-400" />
+                      <span>(1)</span>
+                    </div>
                     <button
                       id="chat-send-btn"
                       type="submit"
                       disabled={isStreaming || isProcessingDoc || !input.trim()}
-                      className="w-8 h-8 rounded-full bg-brand-green text-white hover:bg-brand-green/90 transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center active:scale-[0.98] shrink-0 disabled:cursor-not-allowed"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
+                        !input.trim() || isStreaming || isProcessingDoc
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-80'
+                          : 'bg-brand-green text-white hover:bg-brand-green/90 active:scale-95 cursor-pointer shadow-xs'
+                      }`}
                     >
-                      <Send className="w-3.5 h-3.5" />
+                      <ArrowRight className="w-4.5 h-4.5 stroke-[2.5px]" />
                     </button>
                   </div>
                 </form>
+                <p className="text-[10px] text-gray-400 font-semibold text-center mt-2.5 leading-none select-none">
+                  Braudle can be inaccurate; please double check its responses.
+                </p>
               </div>
 
             </section>
 
             {/* PANEL 3: RIGHT PANEL (Studio / Study Modes & Notes) */}
             {(showRightPane || activeMobileTab === 'studio') && (
-              <aside className={`bg-white p-6 flex flex-col justify-between overflow-y-auto shrink-0 z-30 text-left transition-all duration-300 ease-in-out ${
+              <aside className={`bg-white p-6 flex flex-col justify-start overflow-y-auto lg:overflow-hidden shrink-0 z-30 text-left lg:rounded-3xl lg:border lg:border-zinc-200/50 lg:shadow-2xs transition-all duration-300 ease-in-out ${
                 activeMobileTab === 'studio' 
                   ? 'flex flex-1 w-full' 
                   : `hidden lg:flex lg:relative ${
                       rightPanelTab === 'studio' 
                         ? 'lg:w-92' 
                         : isExpandedRightPane
-                          ? 'lg:w-[70vw] xl:w-[65vw] max-w-5xl'
+                          ? 'flex-1 w-full lg:max-w-none'
                           : 'lg:w-[38vw] xl:w-[35vw] max-w-xl min-w-[350px]'
                     } animate-in slide-in-from-right-4 duration-300`
               }`}>
@@ -1181,7 +1193,9 @@ export default function SessionPage({ params }: SessionPageProps) {
                             ? 'Braudle Modes' 
                             : rightPanelTab === 'quiz' 
                               ? (isExamSession ? 'Exam Simulation' : 'Physics Quiz') 
-                              : 'Flashcard Deck'}
+                              : rightPanelTab === 'summary'
+                                ? 'PDF Study Summary'
+                                : 'Flashcard Deck'}
                         </span>
                       </div>
                     </div>
@@ -1190,7 +1204,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                       {rightPanelTab !== 'studio' && (
                         <button
                           onClick={() => setIsExpandedRightPane(!isExpandedRightPane)}
-                          className="p-1.5 rounded-xl border border-gray-100 text-gray-400 hover:text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
+                          className="hidden lg:flex p-1.5 rounded-xl border border-gray-100 text-gray-400 hover:text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
                           title={isExpandedRightPane ? "Collapse Panel" : "Expand Panel"}
                         >
                           {isExpandedRightPane ? (
@@ -1223,8 +1237,8 @@ export default function SessionPage({ params }: SessionPageProps) {
                     </div>
                   )}
                   </div>
-                  {rightPanelTab === 'studio' && (
-                    <div className="space-y-6 animate-in fade-in duration-200 flex-1 flex flex-col min-h-0">
+                   {rightPanelTab === 'studio' && (
+                    <div className="space-y-6 animate-in fade-in duration-200 lg:flex-1 lg:flex lg:flex-col lg:min-h-0">
                       
                       {/* Grid of study guides */}
                       <div>
@@ -1232,36 +1246,32 @@ export default function SessionPage({ params }: SessionPageProps) {
                           Study Guide Generators
                         </h4>
                         
-                        <div className="grid grid-cols-3 gap-2.5">
+                        <div className="grid grid-cols-2 gap-2.5">
                           {studioCards.map((card) => (
                             <button
                               key={card.id}
-                              onClick={() => {
-                                if (card.isPlaceholder) {
-                                  alert(card.desc);
-                                } else {
-                                  card.onClick?.();
-                                }
-                              }}
+                              onClick={() => card.onClick?.()}
                               disabled={isProcessingDoc}
-                              className={`p-3.5 rounded-2xl border border-transparent ${card.bg} text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[96px] disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs`}
+                              className={`p-3.5 rounded-2xl border border-transparent ${card.bg} text-left transition-all cursor-pointer group flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs hover:shadow-xs active:scale-[0.98] w-full min-h-[85px]`}
                             >
-                              <div className={`w-8 h-8 rounded-xl ${card.iconBg} flex items-center justify-center group-hover:scale-105 transition-all shrink-0`}>
-                                <card.icon className="w-4 h-4" />
+                              <div className="flex items-center justify-between w-full">
+                                <div className={`w-8 h-8 rounded-xl ${card.iconBg} flex items-center justify-center group-hover:scale-105 transition-all shrink-0`}>
+                                  <card.icon className="w-4 h-4" />
+                                </div>
+                                <div className="w-6 h-6 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-gray-400 group-hover:text-brand-green group-hover:scale-105 transition-all shrink-0 shadow-3xs">
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </div>
                               </div>
-                              <div className="flex items-center justify-between w-full mt-2">
-                                <span className="font-extrabold text-[11px] text-brand-forest leading-tight truncate">
-                                  {card.label}
-                                </span>
-                                <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-brand-green group-hover:translate-x-0.5 transition-all shrink-0 opacity-60 group-hover:opacity-100" />
-                              </div>
+                              <span className="font-extrabold text-[12px] text-brand-forest leading-tight mt-3.5 truncate block">
+                                {card.label}
+                              </span>
                             </button>
                           ))}
                         </div>
                       </div>
 
                       {/* Saved Study Guides & Notes Section */}
-                      <div className="border-t border-gray-150/40 pt-5 flex-1 flex flex-col min-h-0">
+                      <div className="border-t border-gray-150/40 pt-5 lg:flex-1 lg:flex lg:flex-col lg:min-h-0">
                         <div className="flex items-center justify-between mb-3 shrink-0">
                           <h4 className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/50">
                             Saved Study Guides & Notes
@@ -1276,62 +1286,126 @@ export default function SessionPage({ params }: SessionPageProps) {
                         </div>
 
                         {combinedItems.length === 0 ? (
-                          <div className="p-8 border border-dashed border-gray-200 rounded-2xl text-center text-gray-400 flex-1 flex items-center justify-center animate-in fade-in">
+                          <div className="p-8 border border-dashed border-gray-200 rounded-2xl text-center text-gray-400 lg:flex-1 flex items-center justify-center animate-in fade-in">
                             <p className="text-[11px] leading-relaxed max-w-[200px]">
                               No guides or notes saved yet. Generate a quiz or write a note to get started!
                             </p>
                           </div>
                         ) : (
-                          <div className="space-y-2 overflow-y-auto pr-1 flex-1 min-h-0">
+                          <div className="space-y-2 lg:overflow-y-auto pr-1 lg:flex-1 lg:min-h-0">
                             {combinedItems.map((item) => {
                               const isNote = item.type === 'note';
-                              const isFlashcard = item.type === 'flashcards';
-                              return (
-                                <div
-                                  key={item.id}
-                                  onClick={() => {
-                                    if (isNote) {
-                                      setSelectedNote(item.raw);
-                                    } else if (isFlashcard) {
-                                      setRightPanelTab('flashcards');
-                                    } else {
-                                      handleLoadSavedQuiz(item.raw);
-                                    }
-                                  }}
-                                  className="p-3 border border-gray-150 hover:border-brand-green rounded-xl bg-white cursor-pointer transition-all flex items-center justify-between group/saved-item shadow-2xs hover:scale-[1.01] animate-in fade-in"
-                                >
-                                  <div className="flex items-center gap-3 min-w-0 pr-2">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                      isNote 
-                                        ? 'bg-zinc-100 text-zinc-600' 
-                                        : isFlashcard 
-                                          ? 'bg-rose-100 text-rose-700' 
-                                          : item.raw.isExam
-                                            ? 'bg-amber-100 text-amber-700'
-                                            : 'bg-blue-100 text-blue-700'
-                                    }`}>
-                                      {isNote ? (
-                                        <FileText className="w-4 h-4" />
-                                      ) : isFlashcard ? (
-                                        <BookOpen className="w-4 h-4" />
-                                      ) : item.raw.isExam ? (
-                                        <Award className="w-4 h-4" />
-                                      ) : (
-                                        <FileQuestion className="w-4 h-4" />
-                                      )}
+                              if (isNote) {
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => setSelectedNote(item.raw)}
+                                    className="py-2.5 px-2 flex items-center justify-between group/saved-item cursor-pointer hover:bg-zinc-50 rounded-xl transition-all animate-in fade-in"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-zinc-500">
+                                        <FileText className="w-5 h-5 stroke-[2px]" />
+                                      </div>
+                                      <div className="text-left min-w-0">
+                                        <span className="font-semibold text-xs text-brand-forest block truncate group-hover/saved-item:text-brand-green transition-colors">
+                                          {item.title}
+                                        </span>
+                                        <span className="text-[10px] text-zinc-400 block mt-0.5">
+                                          1 source · {formatTimeAgo(item.date)}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="text-left min-w-0">
-                                      <span className="font-bold text-xs text-brand-forest block truncate group-hover/saved-item:text-brand-green transition-colors">
-                                        {item.title}
-                                      </span>
-                                      <span className="text-[9px] text-gray-400 block mt-0.5">
-                                        {isNote 
-                                          ? `1 source · ${formatTimeAgo(item.date)}` 
-                                          : `${item.subtitle} · ${formatTimeAgo(item.date)}`}
-                                      </span>
-                                    </div>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                      className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0"
+                                    >
+                                      <MoreVertical className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                  <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0 group-hover/saved-item:text-brand-green transition-all" />
+                                );
+                              }
+
+                              const isQuizGrp = item.type === 'quiz-group';
+                              const isExamGrp = item.type === 'exam-group';
+                              const iconColor = isQuizGrp 
+                                ? 'text-blue-600' 
+                                : isExamGrp 
+                                  ? 'text-amber-600' 
+                                  : 'text-rose-600';
+                              const isExpanded = !!expandedGroups[item.id];
+
+                              return (
+                                <div key={item.id} className="space-y-0.5 animate-in fade-in duration-200">
+                                  <div
+                                    onClick={() => toggleGroup(item.id)}
+                                    className="py-2.5 px-2 flex items-center justify-between group/saved-item cursor-pointer hover:bg-zinc-50 rounded-xl transition-all"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                                      <div className={`w-5 h-5 flex items-center justify-center shrink-0 ${iconColor}`}>
+                                        {isQuizGrp ? (
+                                          <FileQuestion className="w-5 h-5 stroke-[2px]" />
+                                        ) : isExamGrp ? (
+                                          <Award className="w-5 h-5 stroke-[2px]" />
+                                        ) : (
+                                          <BookOpen className="w-5 h-5 stroke-[2px]" />
+                                        )}
+                                      </div>
+                                      <div className="text-left min-w-0">
+                                        <span className="font-semibold text-xs text-brand-forest block truncate group-hover/saved-item:text-brand-green transition-colors">
+                                          {item.title}
+                                        </span>
+                                        <span className="text-[10px] text-zinc-400 block mt-0.5">
+                                          {item.subtitle}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleGroup(item.id);
+                                      }}
+                                      className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0"
+                                    >
+                                      <ChevronRight className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                    </button>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="ml-4.5 border-l border-zinc-200/40 pl-3.5 space-y-1 mt-0.5 mb-2 animate-in slide-in-from-top-1 duration-150">
+                                      {item.items.map((sub: any, sIdx: number) => {
+                                        return (
+                                          <div
+                                            key={sub.id}
+                                            onClick={() => {
+                                              if (isQuizGrp || isExamGrp) {
+                                                handleLoadSavedQuiz(sub.raw);
+                                              } else {
+                                                setSelectedFlashcardDeckId(item.items[sIdx].id);
+                                                setCurrentFlashcardIdx(0);
+                                                setIsFlipped(false);
+                                                setRightPanelTab('flashcards');
+                                                setActiveMobileTab('studio');
+                                                setShowRightPane(true);
+                                              }
+                                            }}
+                                            className="py-2 px-2 flex items-center justify-between group/sub-item cursor-pointer hover:bg-zinc-55 rounded-lg transition-all"
+                                          >
+                                            <div className="flex flex-col text-left min-w-0 pr-2">
+                                              <span className="font-semibold text-[11px] text-brand-forest/90 group-hover/sub-item:text-brand-green transition-colors">
+                                                {sub.title}
+                                              </span>
+                                              <span className="text-[9px] text-zinc-400 block mt-0.5">
+                                                {sub.subtitle} · {formatTimeAgo(sub.date)}
+                                              </span>
+                                            </div>
+                                            <ChevronRight className="w-3 h-3 text-zinc-350 group-hover/sub-item:text-brand-green transition-all" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1343,7 +1417,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                   )}
 
                   {rightPanelTab === 'quiz' && (
-                    <div className="animate-in fade-in duration-200">
+                    <div className="animate-in fade-in duration-200 lg:flex-1 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
                       <PracticePanel 
                         quiz={quiz}
                         selectedAnswers={selectedAnswers}
@@ -1363,7 +1437,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                   )}
 
                   {rightPanelTab === 'flashcards' && (
-                    <div className="space-y-5 animate-in fade-in duration-200 text-left">
+                    <div className="space-y-5 animate-in fade-in duration-200 text-left flex-1 overflow-y-auto pr-1 min-h-0">
                       {flashcards.length === 0 ? (
                         <div className="space-y-6 animate-in fade-in duration-200">
                           <div className="space-y-2">
@@ -1417,14 +1491,38 @@ export default function SessionPage({ params }: SessionPageProps) {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => handleCreateCustomFlashcards(flashcardCount, flashcardFocus)}
-                            disabled={isStreaming || isGeneratingFlashcards}
-                            className="w-full py-3.5 bg-brand-green text-white rounded-2xl text-xs font-bold hover:bg-brand-green/90 transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5 disabled:opacity-40"
-                          >
-                            <BookOpen className="w-4 h-4" />
-                            <span>{isGeneratingFlashcards ? 'Configuring Deck...' : 'Generate Flashcards Deck'}</span>
-                          </button>
+                          {flashcardLimitError ? (
+                            <div className="p-4 bg-rose-50 border border-rose-150/40 rounded-2xl text-left space-y-3 animate-in fade-in duration-200 mt-4">
+                              <div className="flex gap-2 text-rose-700">
+                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div className="text-xs font-bold leading-normal">
+                                  Limit reached for Flashcards generation!
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-rose-600/90 leading-relaxed">
+                                Free tier users can only generate one flashcard deck every 2 days. 
+                                You can generate another deck in <span className="font-extrabold">{flashcardLimitError}</span>, or upgrade to PRO now for unlimited instant access!
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  window.location.href = '/home#pricing';
+                                }}
+                                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center active:scale-[0.98] shadow-3xs"
+                              >
+                                Upgrade to PRO
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleCreateCustomFlashcards(flashcardCount, flashcardFocus)}
+                              disabled={isStreaming || isGeneratingFlashcards}
+                              className="w-full py-3.5 bg-brand-green text-white rounded-2xl text-xs font-bold hover:bg-brand-green/90 transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5 disabled:opacity-40"
+                            >
+                              <BookOpen className="w-4 h-4" />
+                              <span>{isGeneratingFlashcards ? 'Configuring Deck...' : 'Generate Flashcards Deck'}</span>
+                            </button>
+                          )}
                         </div>
                       ) : (
                         /* Interactive Flashcard deck */
@@ -1437,33 +1535,33 @@ export default function SessionPage({ params }: SessionPageProps) {
                           {/* Flip Card */}
                           <div 
                             onClick={() => setIsFlipped(!isFlipped)}
-                            className={`w-full min-h-[200px] cursor-pointer rounded-3xl p-6 flex flex-col items-center justify-center text-center transition-all duration-300 relative select-none shadow-sm border active:scale-[0.98] ${
+                            className={`w-full min-h-[260px] cursor-pointer rounded-3xl p-8 flex flex-col items-center justify-center text-center transition-all duration-500 relative select-none shadow-sm border active:scale-[0.99] ${
                               !isFlipped
                                 ? 'bg-brand-forest text-white border-brand-yellow/20 hover:border-brand-yellow/45 hover:shadow-md'
                                 : 'bg-[#FCFDF9] text-brand-forest border-zinc-200/60 hover:border-brand-green/30 hover:shadow-md'
                             }`}
                           >
                             {!isFlipped ? (
-                              <div className="space-y-3 flex flex-col items-center">
-                                <span className="text-[9px] font-black text-brand-yellow uppercase tracking-widest bg-brand-yellow/10 border border-brand-yellow/20 px-3 py-1 rounded-full">
+                              <div className="space-y-4 flex flex-col items-center">
+                                <span className="text-[10px] font-black text-brand-yellow uppercase tracking-widest bg-brand-yellow/10 border border-brand-yellow/20 px-3.5 py-1.5 rounded-full">
                                   FRONT
                                 </span>
-                                <h4 className="font-extrabold text-sm sm:text-base leading-snug max-w-md">
-                                  {flashcards[currentFlashcardIdx]?.front}
+                                <h4 className="font-extrabold text-base sm:text-lg lg:text-xl leading-snug max-w-md">
+                                  {renderInlineContent(flashcards[currentFlashcardIdx]?.front)}
                                 </h4>
-                                <span className="text-[10px] text-gray-400 italic font-medium pt-2 block">
+                                <span className="text-[10px] text-gray-300/80 italic font-medium pt-3 block">
                                   Click card to reveal answer
                                 </span>
                               </div>
                             ) : (
-                              <div className="space-y-3 flex flex-col items-center">
-                                <span className="text-[9px] font-black text-brand-green uppercase tracking-widest bg-brand-green/10 border border-brand-green/20 px-3 py-1 rounded-full">
+                              <div className="space-y-4 flex flex-col items-center">
+                                <span className="text-[10px] font-black text-brand-green uppercase tracking-widest bg-brand-green/10 border border-brand-green/20 px-3.5 py-1.5 rounded-full">
                                   BACK
                                 </span>
-                                <p className="text-xs sm:text-sm text-brand-forest font-bold leading-relaxed max-w-md">
-                                  {flashcards[currentFlashcardIdx]?.back}
-                                </p>
-                                <span className="text-[10px] text-brand-green/60 italic font-medium pt-2 block">
+                                <div className="text-sm sm:text-base text-brand-forest font-extrabold leading-relaxed max-w-lg">
+                                  {renderInlineContent(flashcards[currentFlashcardIdx]?.back)}
+                                </div>
+                                <span className="text-[10px] text-brand-green/60 italic font-medium pt-3 block">
                                   Click card to see question
                                 </span>
                               </div>
@@ -1495,6 +1593,75 @@ export default function SessionPage({ params }: SessionPageProps) {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {rightPanelTab === 'summary' && (
+                    <div className="space-y-4 text-left animate-in fade-in duration-200 flex-1 flex flex-col min-h-0">
+                      <div className="space-y-1 shrink-0">
+                        <h4 className="font-extrabold text-base text-brand-forest">
+                          PDF Study Summary
+                        </h4>
+                        <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                          Comprehensive study guide generated from the textbook/lecture content.
+                        </p>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto border border-zinc-200/50 rounded-3xl bg-white p-5 shadow-2xs min-h-[300px]">
+                        {loadingSummary ? (
+                          <div className="h-full flex flex-col items-center justify-center py-20 space-y-4">
+                            <div className="w-8 h-8 rounded-full border-4 border-brand-green/20 border-t-brand-green animate-spin" />
+                            <p className="text-[11px] font-bold text-gray-400">
+                              Generating study summary from document chunks...
+                            </p>
+                          </div>
+                        ) : summaryError ? (
+                          <div className="h-full flex flex-col items-center justify-center py-10 space-y-4 text-center text-rose-500">
+                            <span className="text-sm font-bold">{summaryError}</span>
+                            <button
+                              onClick={fetchDetailedSummary}
+                              className="px-4 py-2 bg-brand-green text-white font-bold text-xs rounded-xl hover:bg-brand-green/95 transition-all cursor-pointer shadow-3xs"
+                            >
+                              Retry Summary
+                            </button>
+                          </div>
+                        ) : detailedSummary ? (
+                          <div className="space-y-6">
+                            {/* Branded Study Document Cover Card */}
+                            <div className="bg-brand-yellow rounded-3xl p-6 relative overflow-hidden border border-brand-yellow/30 shadow-3xs select-none">
+                              <div className="absolute right-0 bottom-0 w-24 h-24 bg-white/20 rounded-full blur-xl pointer-events-none" />
+                              <div className="text-brand-green font-extrabold text-[10px] uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 fill-current" />
+                                <span>Braudle study guide</span>
+                              </div>
+                              <h2 className="text-xl sm:text-2xl font-black text-brand-forest tracking-tight leading-tight">
+                                {docTitle}
+                              </h2>
+                              <div className="text-brand-forest/75 text-xs font-bold mt-2.5 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-brand-green" />
+                                <span>Summarized by Braudle</span>
+                              </div>
+                            </div>
+
+                            {/* Summary Document Body */}
+                            <div className="prose prose-sm max-w-none text-zinc-700 leading-relaxed font-normal p-1">
+                              <MarkdownRenderer content={detailedSummary} />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center py-10 space-y-4 text-center text-gray-400">
+                            <p className="text-[11px] leading-relaxed max-w-[200px]">
+                              Summary not generated. Click the button below to initiate generation.
+                            </p>
+                            <button
+                              onClick={fetchDetailedSummary}
+                              className="px-5 py-2.5 bg-brand-green text-white font-bold text-xs rounded-xl hover:bg-brand-green/95 transition-all cursor-pointer shadow-3xs active:scale-95"
+                            >
+                              Generate Summary
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 

@@ -122,9 +122,49 @@ export default function PracticePanel({
   onGradeQuestion,
   onExplainQuestion,
 }: PracticePanelProps) {
-  const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>('mixed');
+  const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>(isExam ? 'mixed' : 'objective');
   const [numQuestions, setNumQuestions] = useState<number>(15);
   const [instructions, setInstructions] = useState<string>('');
+
+  const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
+
+  const checkGenerationLimit = (type: 'quiz' | 'exam'): { limited: boolean; remainingTimeStr: string } => {
+    const isPro = localStorage.getItem('braudle_is_pro') === 'true';
+    if (isPro) return { limited: false, remainingTimeStr: '' };
+
+    const lastGenKey = type === 'exam' ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
+    const lastGenTimeStr = localStorage.getItem(lastGenKey);
+    if (!lastGenTimeStr) return { limited: false, remainingTimeStr: '' };
+
+    const lastGenTime = Number(lastGenTimeStr);
+    const now = Date.now();
+    const cooldown = 2 * 24 * 60 * 60 * 1000; // 2 days in ms
+
+    if (now - lastGenTime < cooldown) {
+      const remainingMs = cooldown - (now - lastGenTime);
+      const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+      let remainingStr = '';
+      if (remainingHours >= 24) {
+        const days = Math.floor(remainingHours / 24);
+        const hours = remainingHours % 24;
+        remainingStr = `${days}d ${hours}h`;
+      } else {
+        remainingStr = `${remainingHours}h`;
+      }
+      return { limited: true, remainingTimeStr: remainingStr };
+    }
+
+    return { limited: false, remainingTimeStr: '' };
+  };
+
+  useEffect(() => {
+    if (!isExam) {
+      setFormat('objective');
+    } else {
+      setFormat('mixed');
+    }
+    setLimitError(null);
+  }, [isExam]);
 
   // Pagination index
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(0);
@@ -396,11 +436,11 @@ export default function PracticePanel({
                             <div className="font-extrabold mb-1">
                               {gradeInfo.isCorrect ? '✓ Right answer' : '✕ Not quite'}
                             </div>
-                            <p className="mt-1">{gradeInfo.feedback}</p>
+                            <div className="mt-1">{renderInlineContent(gradeInfo.feedback)}</div>
                             {!gradeInfo.isCorrect && gradeInfo.correctAnswer && (
                               <div className="mt-2.5 pt-2.5 border-t border-[#D93025]/15">
                                 <span className="font-extrabold text-[10px] uppercase block mb-1">Expected Answer:</span>
-                                <p className="font-normal opacity-90">{gradeInfo.correctAnswer}</p>
+                                <div className="font-normal opacity-90">{renderInlineContent(gradeInfo.correctAnswer)}</div>
                               </div>
                             )}
                             {gradeInfo.explanation && (
@@ -408,7 +448,7 @@ export default function PracticePanel({
                                 gradeInfo.isCorrect ? 'border-[#34A853]/15' : 'border-[#D93025]/15'
                               }`}>
                                 <span className="font-extrabold text-[10px] uppercase block mb-1">Explanation:</span>
-                                <p className="font-normal opacity-90">{gradeInfo.explanation}</p>
+                                <div className="font-normal opacity-90">{renderInlineContent(gradeInfo.explanation)}</div>
                               </div>
                             )}
                           </div>
@@ -519,7 +559,7 @@ export default function PracticePanel({
 
             {/* Hint dropdown under the actions bar */}
             {isHintOpen && !gradedQuestions[quiz.questions[currentQuestionIdx]?._id] && (
-              <div className="p-3.5 bg-zinc-50 border border-zinc-150/40 rounded-xl text-xs sm:text-sm text-zinc-500 font-medium leading-relaxed max-w-sm animate-in fade-in duration-200 text-left">
+              <div className="p-3.5 bg-zinc-50 border border-zinc-200/40 rounded-xl text-xs sm:text-sm text-zinc-500 font-medium leading-relaxed max-w-sm animate-in fade-in duration-200 text-left">
                 💡 Focus on the concepts of <strong className="text-zinc-600 font-semibold">{quiz.questions[currentQuestionIdx]?.topic || 'this section'}</strong>. Review how this fits into the document summary equations.
               </div>
             )}
@@ -540,40 +580,42 @@ export default function PracticePanel({
 
           <div className="space-y-4">
             {/* Format choice */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60">
-                Question Format
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { id: 'objective', label: '🔘 Objective / MCQ', desc: 'Rigorous option-based recall and concept testing.' },
-                  { id: 'theory', label: '✍️ Theory / Subjective', desc: 'Detailed conceptual questions requiring written essays.' },
-                  { id: 'mixed', label: '🎯 Mixed formats', desc: 'A blended variation of objective and theory exercises.' },
-                  { id: 'story-based', label: '📖 Story-based Scenario', desc: 'Tricky real-world narrative questions testing deep thinking.' }
-                ].map((item) => {
-                  const isSelected = format === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setFormat(item.id as any)}
-                      className={`p-3.5 border rounded-2xl text-left transition-all cursor-pointer group flex flex-col w-full ${
-                        isSelected 
-                          ? 'border-brand-green bg-brand-green/5' 
-                          : 'border-gray-150 bg-white hover:bg-gray-50/40'
-                      }`}
-                    >
-                      <span className="font-bold text-xs text-brand-forest block">
-                        {item.label}
-                      </span>
-                      <span className="text-[9px] text-gray-400 font-medium mt-0.5 leading-normal">
-                        {item.desc}
-                      </span>
-                    </button>
-                  );
-                })}
+            {isExam && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60">
+                  Question Format
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: 'objective', label: '🔘 Objective / MCQ', desc: 'Rigorous option-based recall and concept testing.' },
+                    { id: 'theory', label: '✍️ Theory / Subjective', desc: 'Detailed conceptual questions requiring written essays.' },
+                    { id: 'mixed', label: '🎯 Mixed formats', desc: 'A blended variation of objective and theory exercises.' },
+                    { id: 'story-based', label: '📖 Story-based Scenario', desc: 'Tricky real-world narrative questions testing deep thinking.' }
+                  ].map((item) => {
+                    const isSelected = format === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setFormat(item.id as any)}
+                        className={`p-3.5 border rounded-2xl text-left transition-all cursor-pointer group flex flex-col w-full ${
+                          isSelected 
+                            ? 'border-brand-green bg-brand-green/5' 
+                            : 'border-gray-150 bg-white hover:bg-gray-50/40'
+                        }`}
+                      >
+                        <span className="font-bold text-xs text-brand-forest block">
+                          {item.label}
+                        </span>
+                        <span className="text-[9px] text-gray-400 font-medium mt-0.5 leading-normal">
+                          {item.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Questions count */}
             <div className="space-y-2">
@@ -617,14 +659,48 @@ export default function PracticePanel({
             </div>
           </div>
 
-          <button
-            onClick={() => onGenerateQuiz(format, numQuestions, instructions, isExam)}
-            disabled={loadingQuiz}
-            className="w-full py-3.5 bg-brand-green hover:bg-brand-green/90 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5 disabled:opacity-55 disabled:cursor-not-allowed"
-          >
-            <FileQuestion className="w-4 h-4" />
-            <span>{loadingQuiz ? 'Generating...' : `Generate ${isExam ? 'Exam questions' : 'Practice questions'}`}</span>
-          </button>
+          {limitError ? (
+            <div className="p-4 bg-rose-50 border border-rose-150/40 rounded-2xl text-left space-y-3 animate-in fade-in duration-200 mt-4">
+              <div className="flex gap-2 text-rose-700">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="text-xs font-bold leading-normal">
+                  Limit reached for {limitError.type === 'exam' ? 'Exam' : 'Practice Quiz'} generation!
+                </div>
+              </div>
+              <p className="text-[10px] text-rose-600/90 leading-relaxed">
+                Free tier users can only generate one {limitError.type === 'exam' ? 'exam' : 'quiz'} every 2 days. 
+                You can generate another one in <span className="font-extrabold">{limitError.remaining}</span>, or upgrade to PRO now for unlimited instant access!
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/home#pricing';
+                }}
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center active:scale-[0.98] shadow-3xs"
+              >
+                Upgrade to PRO
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                const check = checkGenerationLimit(isExam ? 'exam' : 'quiz');
+                if (check.limited) {
+                  setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr });
+                  return;
+                }
+                const lastGenKey = isExam ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
+                localStorage.setItem(lastGenKey, Date.now().toString());
+
+                onGenerateQuiz(format, numQuestions, instructions, isExam);
+              }}
+              disabled={loadingQuiz}
+              className="w-full py-3.5 bg-brand-green hover:bg-brand-green/90 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5 disabled:opacity-55 disabled:cursor-not-allowed"
+            >
+              <FileQuestion className="w-4 h-4" />
+              <span>{loadingQuiz ? 'Generating...' : `Generate ${isExam ? 'Exam questions' : 'Practice questions'}`}</span>
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
@@ -238,9 +239,20 @@ export default function LibraryPage() {
               </p>
             </div>
 
-            {/* Subject Filters */}
-            {activeTab === 'notebooks' && subjects.length > 1 && (
-              <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => setIsUploadOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-brand-green hover:bg-brand-green/95 active:scale-[0.98] transition-all px-4.5 py-2 text-xs font-bold text-white cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Upload Source</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Subject Filters */}
+          {activeTab === 'notebooks' && subjects.length > 1 && (
+            <div className="flex flex-wrap gap-2 mb-6">
                 {subjects.map((sub) => (
                   <button
                     key={sub}
@@ -256,7 +268,6 @@ export default function LibraryPage() {
                 ))}
               </div>
             )}
-          </div>
 
           {/* Main Library Navigation Tabs */}
           <div className="flex border-b border-gray-200/80 mb-8 gap-6 text-sm font-semibold select-none">
@@ -292,70 +303,77 @@ export default function LibraryPage() {
             </button>
           </div>
 
-          {/* Tab 1: Notebooks Grid */}
+          {/* Tab 1: Notebooks List */}
           {activeTab === 'notebooks' && (
             loadingDocs ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Shimmer Skeleton cards */}
-                {Array.from({ length: 6 }).map((_, idx) => (
-                  <div key={idx} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between min-h-[220px] animate-pulse">
-                    <div>
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="h-5 w-16 bg-gray-100 rounded-full" />
-                        <div className="h-3 w-12 bg-gray-100 rounded-full" />
-                      </div>
-                      <div className="h-4 w-3/4 bg-gray-100 rounded-full mb-3" />
-                      <div className="h-4 w-1/2 bg-gray-100 rounded-full" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-gray-50/50">
-                      <div className="h-9 bg-gray-100 rounded-xl" />
-                      <div className="h-9 bg-gray-100 rounded-xl" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="bg-gray-100/50 border border-gray-150 rounded-2xl p-5 aspect-[1.35/1] sm:aspect-[1.4/1] flex flex-col justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-gray-200 shrink-0" />
+                    <div className="space-y-2 mt-4">
+                      <div className="h-4 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-150 rounded w-1/2" />
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                
-                {/* Upload Card */}
-                <div
-                  onClick={() => setIsUploadOpen(true)}
-                  className="border-2 border-dashed border-gray-200 hover:border-brand-green/40 hover:bg-brand-green/5 cursor-pointer rounded-3xl min-h-[110px] sm:min-h-[220px] flex flex-col items-center justify-center text-center p-3 sm:p-6 transition-all duration-300 group"
-                >
-                  <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center mb-1.5 sm:mb-4 group-hover:scale-105 transition-transform duration-300">
-                    <Plus className="w-4.5 h-4.5 sm:w-6 sm:h-6" />
-                  </div>
-                  <h3 className="font-bold text-sm text-brand-forest mb-1">
-                    Upload
-                  </h3>
-                  <p className="text-xs text-gray-400 max-w-[200px] leading-relaxed">
-                    Upload a PDF or image to start study sessions.
-                  </p>
-                </div>
-
-                {/* Document cards */}
-                {filteredDocuments.map((doc) => (
-                  <DocumentCard
-                    key={doc.id || doc._id}
-                    doc={doc}
-                    onStartSession={handleStartSession}
-                    onDeleteSuccess={() => fetchDocuments(false)}
-                  />
-                ))}
-
-                {/* Search Empty State */}
-                {filteredDocuments.length === 0 && searchQuery && (
-                  <div className="col-span-full border border-gray-100 rounded-3xl p-12 text-center bg-gray-50/50">
-                    <p className="text-sm font-semibold text-brand-forest">No sources matched your search.</p>
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className="mt-3 text-xs font-bold text-brand-green hover:underline cursor-pointer"
+              <div className="space-y-6">
+                {filteredDocuments.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+                    {/* Create notebook Card */}
+                    <div
+                      onClick={() => setIsUploadOpen(true)}
+                      className="border border-dashed border-gray-250 hover:border-brand-green/30 bg-white rounded-2xl flex flex-col items-center justify-center p-5 cursor-pointer hover:bg-gray-50/55 transition-all duration-200 aspect-[1.35/1] sm:aspect-[1.4/1]"
                     >
-                      Clear search query
-                    </button>
-                  </div>
-                )}
+                      <div className="w-10 h-10 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center mb-3">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                      <span className="font-bold text-xs text-brand-forest">
+                        Create notebook
+                      </span>
+                    </div>
 
+                    {filteredDocuments.map((doc) => (
+                      <DocumentCard
+                        key={doc.id || doc._id}
+                        doc={doc}
+                        onStartSession={handleStartSession}
+                        onDeleteSuccess={() => fetchDocuments(false)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  !searchQuery ? (
+                    <div className="border border-dashed border-gray-200 rounded-3xl p-12 text-center bg-gray-50/20 flex flex-col items-center justify-center space-y-4 max-w-md mx-auto my-6 animate-in fade-in duration-200">
+                      <div className="w-12 h-12 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center">
+                        <Plus className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-sm text-brand-forest">Add your first source</h3>
+                        <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
+                          Upload a PDF or image. Braudle will analyze and map your source material for interactive study.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsUploadOpen(true)}
+                        className="px-5 py-2.5 rounded-full bg-brand-green hover:bg-brand-green/95 text-white font-bold text-xs shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
+                      >
+                        Upload Document
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-100 rounded-3xl p-12 text-center bg-gray-50/50 text-left">
+                      <p className="text-sm font-semibold text-brand-forest">No sources matched your search.</p>
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="mt-3 text-xs font-bold text-brand-green hover:underline cursor-pointer"
+                      >
+                        Clear search query
+                      </button>
+                    </div>
+                  )
+                )}
               </div>
             )
           )}
