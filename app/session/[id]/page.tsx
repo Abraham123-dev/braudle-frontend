@@ -4,6 +4,7 @@ import React, { useRef, useEffect, use } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useSession } from '@/hooks/useSession';
 import { api } from '@/lib/api';
+import { useStore } from '@/lib/store';
 import PracticePanel from '@/components/quiz/PracticePanel';
 import MarkdownRenderer, { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
 import LeftSidebar from '@/components/tutor/LeftSidebar';
@@ -173,6 +174,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     activeSuggestions
   } = useSession(sessionId);
 
+  const user = useStore((state) => state.user);
   // Local Notes State
   const [notes, setNotes] = React.useState<SavedNote[]>([]);
   const [isAddNoteOpen, setIsAddNoteOpen] = React.useState(false);
@@ -547,7 +549,8 @@ export default function SessionPage({ params }: SessionPageProps) {
     if (isStreaming) return;
 
     // Check limit
-    const isPro = localStorage.getItem('braudle_is_pro') === 'true';
+    const userPlan = user?.plan || 'free';
+    const isPro = userPlan === 'plus' || userPlan === 'large';
     if (!isPro) {
       const lastGenTimeStr = localStorage.getItem('braudle_last_generated_flashcards');
       if (lastGenTimeStr) {

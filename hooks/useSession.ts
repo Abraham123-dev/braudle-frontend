@@ -403,7 +403,7 @@ export function useSession(sessionId: string) {
         throw new Error('No quiz payload returned.');
       }
     } catch (err: any) {
-      alert(`Failed to generate practice test: ${err.message}`);
+      throw err;
     } finally {
       setLoadingQuiz(false);
     }

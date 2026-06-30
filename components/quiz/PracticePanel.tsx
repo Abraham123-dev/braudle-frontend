@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Award, ChevronRight, AlertCircle, FileQuestion, ChevronLeft, Loader2 } from 'lucide-react';
 import { Quiz, Question } from '@/hooks/useSession';
 import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
+import { useStore } from '@/lib/store';
 
 const cleanOptionText = (text: string) => {
   if (!text) return '';
@@ -122,6 +123,7 @@ export default function PracticePanel({
   onGradeQuestion,
   onExplainQuestion,
 }: PracticePanelProps) {
+  const user = useStore((state) => state.user);
   const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>(isExam ? 'mixed' : 'objective');
   const [numQuestions, setNumQuestions] = useState<number>(isExam ? 10 : 5);
   const [instructions, setInstructions] = useState<string>('');
@@ -130,7 +132,8 @@ export default function PracticePanel({
   const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
 
   const checkGenerationLimit = (type: 'quiz' | 'exam'): { limited: boolean; remainingTimeStr: string } => {
-    const isPro = localStorage.getItem('braudle_is_pro') === 'true';
+    const userPlan = user?.plan || 'free';
+    const isPro = userPlan === 'plus' || userPlan === 'large';
     if (isPro) return { limited: false, remainingTimeStr: '' };
 
     const lastGenKey = type === 'exam' ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
@@ -746,16 +749,22 @@ export default function PracticePanel({
             </div>
           ) : (
             <button
-              onClick={() => {
+              onClick={async () => {
                 const check = checkGenerationLimit(isExam ? 'exam' : 'quiz');
                 if (check.limited) {
                   setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr });
                   return;
                 }
-                const lastGenKey = isExam ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
-                localStorage.setItem(lastGenKey, Date.now().toString());
-
-                onGenerateQuiz(format, numQuestions, instructions, isExam);
+                try {
+                  await onGenerateQuiz(format, numQuestions, instructions, isExam);
+                  const lastGenKey = isExam ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
+                  localStorage.setItem(lastGenKey, Date.now().toString());
+                } catch (err: any) {
+                  const msg = err.message || '';
+                  const match = msg.match(/Available in (.*)\./i) || msg.match(/in (.*)\./i);
+                  const remainingTime = match ? match[1] : '3d 0h';
+                  setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: remainingTime });
+                }
               }}
               disabled={loadingQuiz}
               className="w-full py-3.5 bg-brand-green hover:bg-brand-green/90 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-2xs mt-4 flex items-center justify-center gap-1.5 disabled:opacity-55 disabled:cursor-not-allowed"

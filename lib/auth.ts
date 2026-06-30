@@ -13,6 +13,7 @@ export interface User {
   onboardingComplete?: boolean;
   needsNameUpdate?: boolean;
   authProvider?: 'google' | 'email';
+  plan?: 'free' | 'plus' | 'large';
 }
 
 // Client-side authentication persistence helper
