@@ -8,26 +8,49 @@ export const Pricing = () => {
   const plans = [
     {
       name: "Free",
-      price: "$0",
+      price: "₦0",
       description: "Start your learning journey.",
-      features: ["5 PDFs/day, unlimited images", "Adaptive Teach Mode", "Advanced 'Explain Like I'm' levels", "Deep Misconception Insights", "10MB PDF support"],
+      features: [
+        "5 PDFs/day (max 10MB)",
+        "Tutor Chat (6h token reset)",
+        "PDF Summary generated once",
+        "1 Flashcards gen / 3 days",
+        "1 Practice Guide / 3 days",
+        "1 Exam Prep / 3 days"
+      ],
       cta: "Get Started",
       highlight: false
     },
     {
-      name: "Pro",
-      price: "$12",
+      name: "Plus",
+      price: "₦6,000",
       description: "For serious students.",
-      features: ["Unlimited documents", "Voice Learning Mode", "Real-time AI Audio", "Advanced Breakdown Mode", "Priority AI Processing"],
-      cta: "Go Pro",
+      features: [
+        "10 PDFs/day (max 25MB)",
+        "Higher Tutor token budget",
+        "3 Flashcard gens/day",
+        "3 Practice Guides/day",
+        "3 Exam Preps/day",
+        "Priority AI responses",
+        "Early access features"
+      ],
+      cta: "Go Plus",
       highlight: true
     },
     {
-      name: "Team",
-      price: "$29",
-      description: "For study groups & schools.",
-      features: ["Collaborative study rooms", "Admin dashboard", "Plagiarism check", "Direct tutor Export"],
-      cta: "Contact Us",
+      name: "Large",
+      price: "₦15,000",
+      description: "For power learners.",
+      features: [
+        "Unlimited uploads (max 50MB)",
+        "Highest Tutor token budget",
+        "Unlimited Flashcards",
+        "Unlimited Practice Guides",
+        "Unlimited Exam Prep",
+        "Priority support",
+        "Highest response priority"
+      ],
+      cta: "Go Large",
       highlight: false
     }
   ];

@@ -552,7 +552,7 @@ export default function SessionPage({ params }: SessionPageProps) {
       const lastGenTimeStr = localStorage.getItem('braudle_last_generated_flashcards');
       if (lastGenTimeStr) {
         const lastGenTime = Number(lastGenTimeStr);
-        const cooldown = 2 * 24 * 60 * 60 * 1000;
+        const cooldown = 3 * 24 * 60 * 60 * 1000;
         if (Date.now() - lastGenTime < cooldown) {
           const remainingMs = cooldown - (Date.now() - lastGenTime);
           const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
@@ -1460,19 +1460,21 @@ export default function SessionPage({ params }: SessionPageProps) {
                                   {flashcardCount} cards
                                 </span>
                               </div>
-                              <input
-                                type="range"
-                                min="5"
-                                max="15"
-                                step="5"
-                                value={flashcardCount}
-                                onChange={(e) => setFlashcardCount(Number(e.target.value))}
-                                className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-brand-green"
-                              />
-                              <div className="flex justify-between text-[8px] font-bold text-gray-400 px-1 uppercase tracking-wider">
-                                <span>5 (Short)</span>
-                                <span>10 (Standard)</span>
-                                <span>15 (Max Deck)</span>
+                              <div className="grid grid-cols-4 gap-2">
+                                {[5, 10, 15, 20].map((c) => (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setFlashcardCount(c)}
+                                    className={`py-2 px-3 border rounded-xl font-bold text-xs text-center transition-all ${
+                                      flashcardCount === c
+                                        ? 'border-brand-green bg-brand-green/5 text-brand-green'
+                                        : 'border-gray-150 bg-white text-brand-forest hover:bg-gray-50/40'
+                                    }`}
+                                  >
+                                    {c}
+                                  </button>
+                                ))}
                               </div>
                             </div>
 
@@ -1500,17 +1502,17 @@ export default function SessionPage({ params }: SessionPageProps) {
                                 </div>
                               </div>
                               <p className="text-[10px] text-rose-600/90 leading-relaxed">
-                                Free tier users can only generate one flashcard deck every 2 days. 
-                                You can generate another deck in <span className="font-extrabold">{flashcardLimitError}</span>, or upgrade to PRO now for unlimited instant access!
+                                Free tier users can only generate one flashcard deck every 3 days. 
+                                You can generate another deck in <span className="font-extrabold">{flashcardLimitError}</span>, or upgrade plan for instant access!
                               </p>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  window.location.href = '/home#pricing';
+                                  window.location.href = '/#pricing';
                                 }}
                                 className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center active:scale-[0.98] shadow-3xs"
                               >
-                                Upgrade to PRO
+                                Upgrade Plan
                               </button>
                             </div>
                           ) : (

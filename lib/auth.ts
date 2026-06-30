@@ -35,10 +35,12 @@ export const auth = {
 
   clearCurrentUser(): void {
     if (typeof window === 'undefined') return;
+    console.log('[AUTH] clearCurrentUser called');
     localStorage.removeItem('braudle_user');
   },
 
   async logout(): Promise<void> {
+    console.log('[AUTH] logout called, stack:', new Error().stack);
     // Always clear client-side state first — never block on backend
     this.clearCurrentUser();
 

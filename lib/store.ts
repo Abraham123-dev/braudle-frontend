@@ -43,6 +43,11 @@ interface BraudleState {
   setProfile: (profile: StudentProfile | null) => void;
   setIsLoading: (isLoading: boolean) => void;
 
+  isOffline: boolean;
+  connectionError: boolean;
+  setIsOffline: (isOffline: boolean) => void;
+  setConnectionError: (connectionError: boolean) => void;
+
   // Active Session state
   activeSession: StudySession | null;
   setActiveSession: (session: StudySession | null) => void;
@@ -72,6 +77,10 @@ export const useStore = create<BraudleState>((set) => ({
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setProfile: (profile) => set({ profile }),
   setIsLoading: (isLoading) => set({ isLoading }),
+  isOffline: false,
+  connectionError: false,
+  setIsOffline: (isOffline) => set({ isOffline }),
+  setConnectionError: (connectionError) => set({ connectionError }),
 
   // Active Session state
   activeSession: null,

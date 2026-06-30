@@ -63,11 +63,17 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         } else {
           throw new Error('Unauthenticated');
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!active) return;
-        auth.clearCurrentUser();
-        setUser(null);
-        router.replace('/login');
+        console.error('[ProtectedRoute] checkAuth caught error:', err, 'status:', err?.status);
+        if (err?.status === 401) {
+          console.log('[ProtectedRoute] Clearing session due to 401 status');
+          auth.clearCurrentUser();
+          setUser(null);
+          router.replace('/login');
+        } else {
+          setChecking(false);
+        }
       } finally {
         if (active) {
           setIsLoading(false);
@@ -98,11 +104,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
             throw new Error('Session invalid');
           }
         })
-        .catch(() => {
+        .catch((err: any) => {
           if (!active) return;
-          auth.clearCurrentUser();
-          setUser(null);
-          router.replace('/login');
+          console.error('[ProtectedRoute] background verification caught error:', err, 'status:', err?.status);
+          if (err?.status === 401) {
+            console.log('[ProtectedRoute] Background verification returned 401 status. Clearing session.');
+            auth.clearCurrentUser();
+            setUser(null);
+            router.replace('/login');
+          }
         });
     } else {
       checkAuth();

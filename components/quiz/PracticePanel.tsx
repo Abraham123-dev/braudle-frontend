@@ -123,8 +123,9 @@ export default function PracticePanel({
   onExplainQuestion,
 }: PracticePanelProps) {
   const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>(isExam ? 'mixed' : 'objective');
-  const [numQuestions, setNumQuestions] = useState<number>(15);
+  const [numQuestions, setNumQuestions] = useState<number>(isExam ? 10 : 5);
   const [instructions, setInstructions] = useState<string>('');
+  const [examCountType, setExamCountType] = useState<'10' | '20' | '30' | 'custom'>(isExam ? '10' : '10');
 
   const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
 
@@ -138,7 +139,7 @@ export default function PracticePanel({
 
     const lastGenTime = Number(lastGenTimeStr);
     const now = Date.now();
-    const cooldown = 2 * 24 * 60 * 60 * 1000; // 2 days in ms
+    const cooldown = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
 
     if (now - lastGenTime < cooldown) {
       const remainingMs = cooldown - (now - lastGenTime);
@@ -618,30 +619,92 @@ export default function PracticePanel({
             )}
 
             {/* Questions count */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60">
-                  Question Count (Points)
+                  {isExam ? 'Exam Question Count' : 'Practice Guide Length'}
                 </label>
                 <span className="text-[10px] font-extrabold text-brand-green bg-brand-green/10 px-2.5 py-0.5 rounded-full">
                   {numQuestions} questions
                 </span>
               </div>
-              <input
-                type="range"
-                min="5"
-                max={isExam ? 15 : 20}
-                step="5"
-                value={numQuestions}
-                onChange={(e) => setNumQuestions(Number(e.target.value))}
-                className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-brand-green"
-              />
-              <div className="flex justify-between text-[8px] font-bold text-gray-400 px-1 uppercase tracking-wider">
-                <span>5 (Mini)</span>
-                <span>10 (Standard)</span>
-                <span>15 (Exam Limit)</span>
-                {!isExam && <span>20 (Marathon)</span>}
-              </div>
+
+              {!isExam ? (
+                // Practice Guide: Quick (5), Standard (10), Comprehensive (15)
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 5, label: 'Quick', desc: '5 Qs' },
+                    { id: 10, label: 'Standard', desc: '10 Qs' },
+                    { id: 15, label: 'Comprehensive', desc: '15 Qs' }
+                  ].map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setNumQuestions(c.id)}
+                      className={`py-3 px-2 border rounded-xl flex flex-col items-center justify-center transition-all ${
+                        numQuestions === c.id
+                          ? 'border-brand-green bg-brand-green/5 text-brand-green'
+                          : 'border-gray-150 bg-white text-brand-forest hover:bg-gray-50/40'
+                      }`}
+                    >
+                      <span className="font-bold text-[11px]">{c.label}</span>
+                      <span className="text-[8px] text-gray-400 font-semibold mt-0.5">{c.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                // Exam Prep: 10, 20, 30, Custom
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: '10', label: '10 Qs' },
+                      { id: '20', label: '20 Qs' },
+                      { id: '30', label: '30 Qs' },
+                      { id: 'custom', label: 'Custom' }
+                    ].map((c) => {
+                      const isSelected = examCountType === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setExamCountType(c.id as any);
+                            if (c.id !== 'custom') {
+                              setNumQuestions(Number(c.id));
+                            }
+                          }}
+                          className={`py-3 px-1.5 border rounded-xl flex flex-col items-center justify-center transition-all ${
+                            isSelected
+                              ? 'border-brand-green bg-brand-green/5 text-brand-green'
+                              : 'border-gray-150 bg-white text-brand-forest hover:bg-gray-50/40'
+                          }`}
+                        >
+                          <span className="font-bold text-[11px]">{c.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {examCountType === 'custom' && (
+                    <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+                      <input
+                        type="range"
+                        min="5"
+                        max="50"
+                        step="5"
+                        value={numQuestions}
+                        onChange={(e) => setNumQuestions(Number(e.target.value))}
+                        className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-brand-green"
+                      />
+                      <div className="flex justify-between text-[8px] font-bold text-gray-400 px-1 uppercase tracking-wider">
+                        <span>5 Qs</span>
+                        <span>25 Qs</span>
+                        <span>50 Qs</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Custom focus instructions */}
@@ -664,21 +727,21 @@ export default function PracticePanel({
               <div className="flex gap-2 text-rose-700">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <div className="text-xs font-bold leading-normal">
-                  Limit reached for {limitError.type === 'exam' ? 'Exam' : 'Practice Quiz'} generation!
+                  Limit reached for {limitError.type === 'exam' ? 'Exam Prep' : 'Practice Guide'} generation!
                 </div>
               </div>
               <p className="text-[10px] text-rose-600/90 leading-relaxed">
-                Free tier users can only generate one {limitError.type === 'exam' ? 'exam' : 'quiz'} every 2 days. 
-                You can generate another one in <span className="font-extrabold">{limitError.remaining}</span>, or upgrade to PRO now for unlimited instant access!
+                Free tier users can only generate one {limitError.type === 'exam' ? 'exam' : 'practice guide'} every 3 days. 
+                You can generate another in <span className="font-extrabold">{limitError.remaining}</span>, or upgrade plan for instant access!
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = '/home#pricing';
+                  window.location.href = '/#pricing';
                 }}
                 className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center active:scale-[0.98] shadow-3xs"
               >
-                Upgrade to PRO
+                Upgrade Plan
               </button>
             </div>
           ) : (

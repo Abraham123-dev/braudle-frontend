@@ -1,7 +1,4 @@
-/**
- * BRAUDLE API Client
- * Central client for interacting with the Express backend APIs.
- */
+import { useStore } from './store';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -12,15 +9,29 @@ export interface ApiResponse<T = any> {
 }
 
 let isRefreshing = false;
-let refreshSubscribers: ((success: boolean) => void)[] = [];
+let refreshSubscribers: ((success: boolean, error?: any) => void)[] = [];
 
-function subscribeTokenRefresh(cb: (success: boolean) => void) {
+function subscribeTokenRefresh(cb: (success: boolean, error?: any) => void) {
   refreshSubscribers.push(cb);
 }
 
-function onRefreshed(success: boolean) {
-  refreshSubscribers.forEach((cb) => cb(success));
+function onRefreshed(success: boolean, error?: any) {
+  refreshSubscribers.forEach((cb) => cb(success, error));
   refreshSubscribers = [];
+}
+
+/**
+ * Pings backend health endpoint to check connection.
+ */
+export async function testConnection(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/health`, { method: 'GET', cache: 'no-store' });
+    if (res.ok) {
+      useStore.getState().setConnectionError(false);
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 /**
@@ -37,13 +48,13 @@ export async function fetchWithRefresh(url: string, options?: RequestInit): Prom
 
   if (response.status === 401 && !url.includes('/auth/refresh') && !url.includes('/auth/logout')) {
     const retryPromise = new Promise<Response>((resolve, reject) => {
-      subscribeTokenRefresh((success) => {
+      subscribeTokenRefresh((success, error) => {
         if (success) {
           fetch(url, requestOptions)
             .then(resolve)
             .catch(reject);
         } else {
-          reject(new Error('Unauthorized'));
+          reject(error || new Error('Unauthorized'));
         }
       });
     });
@@ -63,19 +74,25 @@ export async function fetchWithRefresh(url: string, options?: RequestInit): Prom
             onRefreshed(true);
           } else {
             isRefreshing = false;
-            onRefreshed(false);
-            if (typeof window !== 'undefined') {
-              const { auth } = await import('./auth');
-              auth.logout();
+            
+            const error = new Error('Unauthorized');
+            (error as any).status = refreshRes.status;
+            onRefreshed(false, error);
+
+            // Only log out on real authorization issues (401 or 403)
+            if (refreshRes.status === 401 || refreshRes.status === 403) {
+              console.log('[API] Silent refresh returned status:', refreshRes.status, '. Logging out.');
+              if (typeof window !== 'undefined') {
+                const { auth } = await import('./auth');
+                auth.logout();
+              }
             }
           }
         } catch (err) {
           isRefreshing = false;
-          onRefreshed(false);
-          if (typeof window !== 'undefined') {
-            const { auth } = await import('./auth');
-            auth.logout();
-          }
+          console.error('[API] Silent refresh threw network/fetch error:', err);
+          // Propagate the network error instead of treating it as Unauthorized
+          onRefreshed(false, err);
         }
       })();
     }
@@ -89,33 +106,47 @@ export async function fetchWithRefresh(url: string, options?: RequestInit): Prom
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options?.headers,
-  };
+  const headers: Record<string, string> = {};
+  if (!(options?.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (options?.headers) {
+    Object.assign(headers, options.headers);
+  }
 
   const requestOptions: RequestInit = {
     ...options,
     headers,
   };
 
-  const response = await fetchWithRefresh(url, requestOptions);
-
-  if (!response.ok) {
-    let errorData: any;
-    try {
-      errorData = await response.json();
-    } catch {}
+  try {
+    const response = await fetchWithRefresh(url, requestOptions);
     
-    const message = errorData?.message || response.statusText;
-    const error: any = new Error(message);
-    error.status = response.status;
-    error.code = errorData?.code;
-    error.responseStatus = errorData?.status || 'error';
+    // Clear connection errors upon any successful response
+    useStore.getState().setConnectionError(false);
+
+    if (!response.ok) {
+      let errorData: any;
+      try {
+        errorData = await response.json();
+      } catch {}
+      
+      const message = errorData?.message || response.statusText;
+      const error: any = new Error(message);
+      error.status = response.status;
+      error.code = errorData?.code;
+      error.responseStatus = errorData?.status || 'error';
+      throw error;
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error: any) {
+    // If it is a connection/network issue (no HTTP status code)
+    if (!error.status) {
+      useStore.getState().setConnectionError(true);
+    }
     throw error;
   }
-
-  return response.json() as Promise<T>;
 }
 
 // Global fetch-based API wrapper
@@ -125,25 +156,28 @@ export const api = {
   },
 
   post<T>(endpoint: string, body?: any, options?: RequestInit): Promise<T> {
+    const isFormData = body instanceof FormData;
     return request<T>(endpoint, {
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
       ...options,
     });
   },
 
   put<T>(endpoint: string, body: any, options?: RequestInit): Promise<T> {
+    const isFormData = body instanceof FormData;
     return request<T>(endpoint, {
       method: 'PUT',
-      body: JSON.stringify(body),
+      body: isFormData ? body : JSON.stringify(body),
       ...options,
     });
   },
 
   patch<T>(endpoint: string, body: any, options?: RequestInit): Promise<T> {
+    const isFormData = body instanceof FormData;
     return request<T>(endpoint, {
       method: 'PATCH',
-      body: JSON.stringify(body),
+      body: isFormData ? body : JSON.stringify(body),
       ...options,
     });
   },

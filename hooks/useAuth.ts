@@ -38,12 +38,16 @@ export function useAuth(requireAuth = true) {
         } else {
           throw new Error('No user data returned');
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!active) return;
-        auth.clearCurrentUser();
-        setUser(null);
-        if (requireAuth) {
-          router.replace('/login');
+        console.error('[useAuth] checkAuth caught error:', err, 'status:', err?.status);
+        if (err?.status === 401) {
+          console.log('[useAuth] Clearing session due to 401 status');
+          auth.clearCurrentUser();
+          setUser(null);
+          if (requireAuth) {
+            router.replace('/login');
+          }
         }
       } finally {
         if (active) {

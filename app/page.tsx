@@ -7,7 +7,7 @@ import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { Community } from "@/components/landing/Community";
-
+import { Pricing } from "@/components/landing/Pricing";
 import { FAQ } from "@/components/landing/FAQ";
 import { Footer } from "@/components/landing/Footer";
 
@@ -19,7 +19,7 @@ export default function Home() {
         <Hero />
         <HowItWorks />
         <FeatureGrid />
-
+        <Pricing />
         <Community />
         <FAQ />
         

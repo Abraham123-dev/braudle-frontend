@@ -48,6 +48,8 @@ export default function SettingsPage() {
   const [level, setLevel] = useState('intermediate');
   const [studyLevel, setStudyLevel] = useState('Self-Taught');
   const [learningStyle, setLearningStyle] = useState('interactive explanation');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -69,24 +71,35 @@ export default function SettingsPage() {
     loadData();
   }, []);
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSaveSuccess(false);
     try {
-      // Post profile updates
-      await api.post('/profile/onboarding', {
-        level,
-        studyLevel,
-        learningStyle,
-        goal,
-      });
+      const formData = new FormData();
+      formData.append('level', level);
+      formData.append('studyLevel', studyLevel);
+      formData.append('learningStyle', learningStyle);
+      formData.append('goal', goal);
+      if (avatarFile) {
+        formData.append('file', avatarFile);
+      }
 
-      // Update fresh session
-      const authRes = await api.get<any>('/auth/me');
-      if (authRes.user) {
-        auth.setCurrentUser(authRes.user);
-        setUser(authRes.user);
+      // Save profile and avatar updates
+      const res = await api.put<any>('/profile', formData);
+
+      // Update fresh session user in state
+      if (res.user) {
+        auth.setCurrentUser(res.user);
+        setUser(res.user);
       }
 
       // Fetch fresh profile state
@@ -94,6 +107,7 @@ export default function SettingsPage() {
       setProfile(updatedProfile);
 
       setSaveSuccess(true);
+      setAvatarFile(null);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       alert(`Failed to save settings: ${err.message}`);
@@ -164,12 +178,23 @@ export default function SettingsPage() {
                   
                   {/* Profile Overview Row */}
                   <div className="flex items-center gap-3.5 border-b border-zinc-100 pb-5">
-                    <div className="w-12 h-12 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center font-bold text-sm border border-brand-green/15 shrink-0">
-                      {user?.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                    <div className="relative group cursor-pointer overflow-hidden rounded-full w-12 h-12 border border-brand-green/15 shrink-0 bg-brand-green/10 text-brand-green flex items-center justify-center font-bold text-sm">
+                      {avatarPreview ? (
+                        <img src={avatarPreview} alt={user?.name} className="w-full h-full object-cover animate-in fade-in duration-200" />
+                      ) : user?.avatar ? (
+                        <img src={user.avatar} alt={user?.name} className="w-full h-full object-cover" />
                       ) : (
                         getInitials(user?.name || '')
                       )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[8px] font-bold uppercase tracking-wider select-none">
+                        Edit
+                      </div>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-extrabold text-sm text-brand-forest truncate">{user?.name}</h3>
