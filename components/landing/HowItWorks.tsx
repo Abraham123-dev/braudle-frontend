@@ -15,7 +15,7 @@ export const HowItWorks = () => {
     {
       icon: Cpu,
       title: "Your AI tutor studies them",
-      description: "In the background, your personal tutor reads every page, pulls out key topics, and builds a personalized lesson plan — ready before you are.",
+      description: "Watch your dashboard map your document in real-time as your tutor reads every page, pulls out key topics, and builds a custom lesson map.",
       color: "bg-brand-lime/20 text-brand-forest"
     },
     {

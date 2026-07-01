@@ -14,9 +14,9 @@ export const Pricing = () => {
         "5 PDFs/day (max 10MB)",
         "Tutor Chat (6h token reset)",
         "PDF Summary generated once",
-        "1 Flashcards gen / 3 days",
-        "1 Practice Guide / 3 days",
-        "1 Exam Prep / 3 days"
+        "1 Flashcard gen / day (per doc)",
+        "1 Practice Guide / day (per doc)",
+        "1 Exam Prep / day (per doc)"
       ],
       cta: "Get Started",
       highlight: false
@@ -28,9 +28,9 @@ export const Pricing = () => {
       features: [
         "10 PDFs/day (max 25MB)",
         "Higher Tutor token budget",
-        "3 Flashcard gens/day",
-        "3 Practice Guides/day",
-        "3 Exam Preps/day",
+        "5 Flashcard gens/day",
+        "5 Practice Guides/day",
+        "5 Exam Preps/day",
         "Priority AI responses",
         "Early access features"
       ],

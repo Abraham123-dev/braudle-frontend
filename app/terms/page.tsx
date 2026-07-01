@@ -4,7 +4,7 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 
 export default function TermsConditions() {
-  const lastUpdated = "May 20, 2026";
+  const lastUpdated = "July 1, 2026";
 
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
@@ -50,7 +50,21 @@ export default function TermsConditions() {
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-brand-forest">5. Termination</h2>
+              <h2 className="text-xl font-semibold text-brand-forest">5. Billing & Subscriptions</h2>
+              <p className="text-gray-600 leading-relaxed text-[15px]">
+                We offer standard free access as well as premium recurring paid subscriptions (Plus and Large plans). Subscription fees are billed in advance on a recurring monthly basis. You authorize us to charge your selected payment method for these fees.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-brand-forest">6. Cancellation & Refunds</h2>
+              <p className="text-gray-600 leading-relaxed text-[15px]">
+                You may cancel your recurring subscription at any time via your account settings dashboard. Cancellations will apply to the next billing cycle, and you will retain access to your plan until the end of your current paid period. Except where required by local law, payments are non-refundable.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-brand-forest">7. Termination</h2>
               <p className="text-gray-600 leading-relaxed text-[15px]">
                 We reserve the right to suspend or terminate your account if you violate these terms or engage in misuse of the platform.
               </p>

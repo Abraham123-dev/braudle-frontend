@@ -30,7 +30,9 @@ import {
   Video,
   GitBranch,
   FileBarChart,
-  Table
+  Table,
+  Lock,
+  Zap
 } from 'lucide-react';
 
 interface SessionPageProps {
@@ -171,7 +173,9 @@ export default function SessionPage({ params }: SessionPageProps) {
     docSummary,
     sessionQuizzes,
     fetchSessionQuizzes,
-    activeSuggestions
+    activeSuggestions,
+    isTokenLimited,
+    tokenResetTime
   } = useSession(sessionId);
 
   const user = useStore((state) => state.user);
@@ -555,7 +559,7 @@ export default function SessionPage({ params }: SessionPageProps) {
       const lastGenTimeStr = localStorage.getItem('braudle_last_generated_flashcards');
       if (lastGenTimeStr) {
         const lastGenTime = Number(lastGenTimeStr);
-        const cooldown = 3 * 24 * 60 * 60 * 1000;
+        const cooldown = 24 * 60 * 60 * 1000;
         if (Date.now() - lastGenTime < cooldown) {
           const remainingMs = cooldown - (Date.now() - lastGenTime);
           const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
@@ -603,7 +607,7 @@ export default function SessionPage({ params }: SessionPageProps) {
 
     const userText = input.trim().toLowerCase();
     const isQuizReq = userText.includes('quiz') || userText.includes('practice question') || userText.includes('practice test') || userText.includes('test me');
-    const isExamReq = userText.includes('exam') || userText.includes('mock exam');
+    const isExamReq = /\b(?:mock\s+)?exams?\b/i.test(userText);
     const isFcReq = userText.includes('flashcard') || userText.includes('flash card');
 
     if (isQuizReq) {
@@ -1116,6 +1120,40 @@ export default function SessionPage({ params }: SessionPageProps) {
                     </div>
                   )}
 
+
+                {/* Token Limit Lock Banner — shown when 429 hits */}
+                {isTokenLimited ? (
+                  <div className="relative overflow-hidden rounded-2xl border border-brand-green/20 bg-gradient-to-br from-brand-forest/5 via-brand-green/8 to-brand-lime/10 shadow-lg">
+                    {/* Brand accent line at top */}
+                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-brand-green via-brand-lime to-brand-green" />
+                    <div className="px-5 py-4 flex flex-col items-center gap-3 text-center">
+                      {/* Lock icon in brand circle */}
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand-green to-brand-forest shadow-lg shadow-brand-green/20 flex items-center justify-center">
+                        <Lock className="w-5 h-5 text-brand-lime stroke-[2.5px]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-brand-forest leading-snug">You&apos;ve reached your study limit</p>
+                        <p className="text-xs text-brand-forest/60 mt-0.5 leading-relaxed">
+                          Your AI study time resets in 6 hours{tokenResetTime ? ` (around ${tokenResetTime})` : ''}.
+                        </p>
+                      </div>
+                      {/* Disabled ghost input to show locked state */}
+                      <div className="w-full flex items-center gap-3 bg-white/50 border border-brand-green/20 rounded-full px-4 py-2.5 cursor-not-allowed opacity-70">
+                        <Lock className="w-3.5 h-3.5 text-brand-green/50 shrink-0" />
+                        <span className="flex-1 text-xs text-brand-forest/40 font-medium text-left">Chat is locked until your limit resets&hellip;</span>
+                      </div>
+                      {/* Upgrade CTA */}
+                      <a
+                        href="/settings/billing"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-green text-brand-lime text-xs font-bold shadow-md shadow-brand-green/20 hover:bg-brand-forest hover:shadow-brand-forest/30 hover:scale-[1.02] transition-all active:scale-[0.98]"
+                      >
+                        <Zap className="w-3.5 h-3.5 fill-brand-lime" />
+                        Upgrade for more study time
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 {/* Centered pill-shaped Prompt Input exactly like NotebookLM */}
                 <form onSubmit={handleSendMessageWrapper} className={`relative flex items-center border rounded-full px-4.5 py-2.5 sm:px-5 sm:py-3 transition-all gap-3.5 shadow-2xs ${
                   isProcessingDoc 
@@ -1153,6 +1191,8 @@ export default function SessionPage({ params }: SessionPageProps) {
                 <p className="text-[10px] text-gray-400 font-semibold text-center mt-2.5 leading-none select-none">
                   Braudle can be inaccurate; please double check its responses.
                 </p>
+                  </>
+                )}
               </div>
 
             </section>
@@ -1505,7 +1545,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                                 </div>
                               </div>
                               <p className="text-[10px] text-rose-600/90 leading-relaxed">
-                                Free tier users can only generate one flashcard deck every 3 days. 
+                                Free tier users can only generate one flashcard deck every day. 
                                 You can generate another deck in <span className="font-extrabold">{flashcardLimitError}</span>, or upgrade plan for instant access!
                               </p>
                               <button

@@ -142,7 +142,7 @@ export default function PracticePanel({
 
     const lastGenTime = Number(lastGenTimeStr);
     const now = Date.now();
-    const cooldown = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
+    const cooldown = 24 * 60 * 60 * 1000; // 24 hours in ms
 
     if (now - lastGenTime < cooldown) {
       const remainingMs = cooldown - (now - lastGenTime);
@@ -734,7 +734,7 @@ export default function PracticePanel({
                 </div>
               </div>
               <p className="text-[10px] text-rose-600/90 leading-relaxed">
-                Free tier users can only generate one {limitError.type === 'exam' ? 'exam' : 'practice guide'} every 3 days. 
+                Free tier users can only generate one {limitError.type === 'exam' ? 'exam' : 'practice guide'} every day. 
                 You can generate another in <span className="font-extrabold">{limitError.remaining}</span>, or upgrade plan for instant access!
               </p>
               <button

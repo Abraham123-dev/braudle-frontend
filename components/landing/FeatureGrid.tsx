@@ -18,12 +18,12 @@ export const FeatureGrid = () => (
       
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {[
-          { icon: Search, title: "Multi-Format Input", desc: "Drop PDFs, lecture audio, or images of your notes. Our AI seamlessly digests all formats into personalized lessons." },
+          { icon: BrainCircuit, title: "Smart Layout Reading", desc: "Drop any file—PDFs, slides, or photos of your handwriting. The AI reads it contextually, keeping paragraphs, lists, and key definitions together instead of chopping them in half." },
+          { icon: Search, title: "Laser-Precision Search", desc: "Find exactly what you need in seconds. Search scans for exact words, formulas, page numbers, or general ideas, instantly bringing them up for the AI to explain." },
           { icon: BrainCircuit, title: "Teach & Breakdown", desc: "Experience step-by-step guidance. Need it simpler? Just trigger 'Break It Down' for any confusing concept." },
           { icon: Target, title: "Adaptive Quizzes", desc: "Test yourself with quizzes that target your weak spots. The AI learns where you're struggling and adapts in real-time." },
           { icon: ShieldCheck, title: "Explain Like I'm...", desc: "Switch between Beginner, Intermediate, and Advanced explanation depths mid-session to match your comfort level." },
-          { icon: Search, title: "Voice Tutor", desc: "Natural speech-to-speech interaction. Talk to Braudle and hear responses as if you're in a real private tutoring session." },
-          { icon: Target, title: "Deep Analytics", desc: "A personalized progress dashboard that identifies your misconceptions and tracks your mastery across every subject." }
+          { icon: Target, title: "Voice Tutor", desc: "Natural speech-to-speech interaction. Talk to Braudle and hear responses as if you're in a real private tutoring session." }
         ].map((feat, i) => (
           <div key={i} className="bg-white p-10 rounded-[40px] border border-gray-100 h-full hover:shadow-sm transition-shadow">
             <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center mb-8">

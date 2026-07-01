@@ -4,7 +4,7 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 
 export default function PrivacyPolicy() {
-  const lastUpdated = "May 20, 2026";
+  const lastUpdated = "July 1, 2026";
 
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
@@ -25,6 +25,9 @@ export default function PrivacyPolicy() {
               <h2 className="text-xl font-semibold text-brand-forest">1. Information We Collect</h2>
               <p className="text-gray-600 leading-relaxed text-[15px]">
                 We collect information you provide directly to us, such as when you create an account, upload study materials (PDFs, audio, images), and interact with our AI tutor. This includes your name, email address, and any content within your uploaded materials.
+              </p>
+              <p className="text-gray-600 leading-relaxed text-[15px]">
+                <strong>Payment Information:</strong> If you subscribe to our paid plans (Plus or Large), all transaction data is processed securely by our designated payment processor partners. Braudle does not store your credit card or financial login credentials on its servers.
               </p>
             </div>
 

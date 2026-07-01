@@ -10,22 +10,22 @@ interface UploadModalProps {
   onUploadSuccess: (sessionId: string) => void;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  file_received: 'File received',
-  extracting_content: 'Extracting content',
-  identifying_concepts: 'Identifying key concepts',
-  building_learning_map: 'Building learning map',
-  preparing_tutor: 'Preparing AI tutor',
-  ready: 'Ready to study!',
+const INGESTION_STAGE_LABELS: Record<string, string> = {
+  file_received: 'Document received on server...',
+  extracting_content: 'Reading text layout and tables...',
+  identifying_concepts: 'Mapping key concepts and vocabulary...',
+  building_learning_map: 'Designing custom lesson plan...',
+  preparing_tutor: 'Warming up your personal AI tutor...',
+  ready: 'AI tutor prepared successfully!',
   failed: 'Processing failed',
 };
 
-const PROGRESS_MAP: Record<string, number> = {
-  file_received: 16,
-  extracting_content: 33,
-  identifying_concepts: 50,
-  building_learning_map: 66,
-  preparing_tutor: 83,
+const INGESTION_PROGRESS_MAP: Record<string, number> = {
+  file_received: 55,
+  extracting_content: 70,
+  identifying_concepts: 82,
+  building_learning_map: 92,
+  preparing_tutor: 97,
 };
 
 export default function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
@@ -41,6 +41,10 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   const [analysisStage, setAnalysisStage] = useState('');
   const [analysisProgress, setAnalysisProgress] = useState(0);
   
+  // Unified linear progress UX
+  const [unifiedProgress, setUnifiedProgress] = useState(0);
+  const [unifiedStageLabel, setUnifiedStageLabel] = useState('');
+
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -123,22 +127,23 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
           
           if (status === 'ready') {
             clearInterval(interval);
+            setUnifiedProgress(100);
+            setUnifiedStageLabel('AI tutor prepared successfully!');
             resolve();
           } else if (status === 'failed') {
             clearInterval(interval);
             reject(new Error('Document analysis failed. Please verify the content and try again.'));
           } else {
-            // Update stages dynamically
             if (stage) {
-              setAnalysisStage(STAGE_LABELS[stage] || 'Analyzing document structure...');
-              setAnalysisProgress(PROGRESS_MAP[stage] || 10);
+              setUnifiedStageLabel(INGESTION_STAGE_LABELS[stage] || 'Analyzing document structure...');
+              setUnifiedProgress(prev => Math.max(prev, INGESTION_PROGRESS_MAP[stage] || 50));
             }
           }
         } catch (err) {
           clearInterval(interval);
           reject(err);
         }
-      }, 3000);
+      }, 2000);
     });
   };
 
@@ -155,7 +160,17 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
 
     setUploading(true);
     setError('');
-    setUploadProgress(10);
+    setUnifiedProgress(5);
+    setUnifiedStageLabel('Uploading document source...');
+
+    // Smoothly animate progress from 5% to 45% during upload
+    const uploadTimer = setInterval(() => {
+      setUnifiedProgress(prev => {
+        if (prev < 45) return prev + 2;
+        clearInterval(uploadTimer);
+        return prev;
+      });
+    }, 150);
 
     try {
       // 1. Prepare FormData
@@ -164,14 +179,14 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
       formData.append('title', title.trim());
       formData.append('subject', subject.trim() || 'General');
 
-      setUploadProgress(40);
-
-      // 2. Perform upload via backend server (bypassing client CORS limitations)
+      // 2. Perform upload via backend server
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const uploadResponse = await fetchWithRefresh(`${apiBaseUrl}/documents/upload`, {
         method: 'POST',
         body: formData
       });
+
+      clearInterval(uploadTimer);
 
       if (!uploadResponse.ok) {
         let errorData;
@@ -187,28 +202,36 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         throw new Error('Incomplete upload confirmation from server.');
       }
 
-      setUploadProgress(100);
+      setUnifiedProgress(48);
+      setUnifiedStageLabel('Initializing study session...');
       setUploading(false);
-
-      // 3. Create the session immediately (polling happens inside the session workspace)
       setAnalyzing(true);
-      setAnalysisStage('Initializing Workspace...');
-      setAnalysisProgress(50);
 
+      // 3. Create the session immediately
       const sessionRes = await api.post<any>('/sessions/start', {
         documentId,
         mode: 'understand', // Default starting mode
       });
 
       if (sessionRes.sessionId) {
-        setAnalysisProgress(100);
-        onUploadSuccess(sessionRes.sessionId);
-        onClose();
-        resetForm();
+        setUnifiedProgress(52);
+        setUnifiedStageLabel('Connecting to AI backend...');
+        
+        await pollIngestionStatus(documentId);
+        
+        setUnifiedProgress(100);
+        setUnifiedStageLabel('Workspace ready! Loading dashboard...');
+
+        setTimeout(() => {
+          onUploadSuccess(sessionRes.sessionId);
+          onClose();
+          resetForm();
+        }, 800);
       } else {
         throw new Error('No session ID returned from study initialization.');
       }
     } catch (err: any) {
+      clearInterval(uploadTimer);
       console.error(err);
       const isLimitErr = err.message?.includes('maximum PDF upload') || err.message?.includes('limit reached');
       setError(
@@ -230,6 +253,8 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     setAnalyzing(false);
     setAnalysisStage('');
     setAnalysisProgress(0);
+    setUnifiedProgress(0);
+    setUnifiedStageLabel('');
   }
 
   const busy = uploading || analyzing;
@@ -244,9 +269,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         <div className="flex items-center justify-between px-6 py-4.5 border-b border-gray-50">
           <div>
             <h2 className="text-lg font-bold text-brand-forest">
-              {analyzing ? 'Study Material' : 'Add Study Source'}
+              {busy ? 'Study Source' : 'Add Study Source'}
             </h2>
-            {analyzing && (
+            {busy && (
               <p className="text-[10px] text-gray-400 mt-0.5">Please stay on this screen while the AI maps your document</p>
             )}
           </div>
@@ -262,8 +287,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         {/* Content Form */}
         <form onSubmit={handleUploadSubmit} className="p-4 sm:p-6 space-y-3 sm:space-y-4">
           
-          {/* Main Form Fields (Hidden during Ingestion Analysis) */}
-          {!analyzing ? (
+          {!busy ? (
             <>
               {/* Drag & Drop File Area */}
               {!file ? (
@@ -315,7 +339,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     type="button"
                     onClick={() => setFile(null)}
                     className="p-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                    disabled={busy}
                   >
                     Remove
                   </button>
@@ -335,7 +358,6 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g., Cellular Respiration Study Notes"
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/50 py-2 sm:py-2.5 px-3.5 text-base sm:text-xs font-medium text-brand-forest focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-                    disabled={busy}
                   />
                 </div>
 
@@ -349,83 +371,71 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     onChange={(e) => setSubject(e.target.value)}
                     placeholder="e.g., Biology, Economics, General (Optional)"
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/50 py-2 sm:py-2.5 px-3.5 text-base sm:text-xs font-medium text-brand-forest focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-                    disabled={busy}
                   />
                 </div>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-rose-50 border border-rose-100 text-rose-800 text-[11px] rounded-xl flex gap-2 items-start text-left animate-shake">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-1.5">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!file}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-green text-xs font-bold text-white hover:bg-brand-green/90 transition-all cursor-pointer disabled:opacity-40 disabled:bg-brand-green active:scale-[0.98]"
+                >
+                  Add to Workspace
+                </button>
               </div>
             </>
           ) : (
-            /* Real-time Ingestion State Layout */
-            <div className="flex flex-col items-center justify-center py-4 space-y-4 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-brand-green/10 text-brand-green flex items-center justify-center border border-brand-green/20 animate-spin duration-3000">
-                <Compass className="w-6 h-6" />
+            /* Real-time Ingestion State Layout (Unified linear progress screen) */
+            <div className="flex flex-col items-center justify-center py-4 space-y-5 text-center">
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-4 border-brand-green/10 border-t-brand-green animate-spin" />
+                <div className="w-10 h-10 rounded-full bg-brand-green/5 text-brand-green flex items-center justify-center">
+                  <Compass className="w-5 h-5 animate-pulse" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-xs text-brand-forest">
-                  Mapping Key Concepts...
+
+              <div className="space-y-1 max-w-[280px]">
+                <h3 className="font-bold text-[13px] text-brand-forest leading-tight">
+                  Preparing Your Workspace
                 </h3>
-                <p className="text-[10px] text-gray-400 font-medium animate-pulse">
-                  {analysisStage}
+                <p className="text-[10.5px] text-gray-400 font-semibold h-4 animate-pulse">
+                  {unifiedStageLabel}
                 </p>
               </div>
 
-              {/* Analysis Progress Bar */}
-              <div className="w-full space-y-1.5 text-left bg-gray-50 p-3 border border-gray-100 rounded-2xl">
-                <div className="flex justify-between text-[10px] font-bold text-brand-forest/70">
-                  <span>Tutoring Engine Ingestion</span>
-                  <span>{analysisProgress}%</span>
+              {/* Unified Progress Bar */}
+              <div className="w-full space-y-1.5 text-left bg-gray-50/50 p-4 border border-gray-100/50 rounded-2xl">
+                <div className="flex justify-between text-[9.5px] font-extrabold uppercase tracking-wider text-brand-forest/60">
+                  <span>Processing</span>
+                  <span>{unifiedProgress}%</span>
                 </div>
-                <div className="w-full bg-gray-200/60 h-1 rounded-full overflow-hidden">
+                <div className="w-full bg-gray-200/50 h-1.5 rounded-full overflow-hidden">
                   <div 
-                    className="bg-brand-green h-full transition-all duration-300"
-                    style={{ width: `${analysisProgress}%` }}
+                    className="bg-brand-green h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                    style={{ width: `${unifiedProgress}%` }}
                   />
                 </div>
               </div>
-            </div>
-          )}
 
-          {error && (
-            <div className="p-3 bg-rose-50 border border-rose-100 text-rose-800 text-[11px] rounded-xl flex gap-2 items-start text-left animate-shake">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Upload Progress Bar (Only during Uploading phase) */}
-          {uploading && (
-            <div className="space-y-1 text-left">
-              <div className="flex justify-between text-[11px] font-semibold text-brand-forest/70">
-                <span>Uploading to secure storage...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                <div 
-                  className="bg-brand-green h-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons (Hidden during Ingestion Analysis) */}
-          {!analyzing && (
-            <div className="flex items-center justify-end gap-2.5 pt-1.5">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={busy}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-brand-forest hover:bg-gray-50 transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={busy || !file}
-                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-green text-xs font-bold text-white hover:bg-brand-green/90 transition-all cursor-pointer disabled:opacity-40 disabled:bg-brand-green active:scale-[0.98]"
-              >
-                {uploading ? 'Uploading...' : 'Add to Workspace'}
-              </button>
+              <p className="text-[9px] text-gray-400 font-normal">
+                Please stay on this screen while the AI maps your document structure.
+              </p>
             </div>
           )}
 

@@ -132,6 +132,10 @@ export function useSession(sessionId: string) {
     }
   };
 
+  // Token limit lock state
+  const [isTokenLimited, setIsTokenLimited] = useState(false);
+  const [tokenResetTime, setTokenResetTime] = useState<string | null>(null);
+
   // Time-aware greeting
   const [timeGreeting, setTimeGreeting] = useState('Ready to study');
 
@@ -284,6 +288,13 @@ export function useSession(sessionId: string) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          // Token limit hit — lock the chat like Claude's usage limit
+          const resetAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setIsTokenLimited(true);
+          setTokenResetTime(resetAt);
+          return; // Don't throw — we handle it via the lock UI
+        }
         throw new Error(errorData.message || 'Failed to connect to tutoring engine.');
       }
 
@@ -530,6 +541,8 @@ export function useSession(sessionId: string) {
     handleGradeQuestion,
     sessionQuizzes,
     fetchSessionQuizzes,
-    activeSuggestions
+    activeSuggestions,
+    isTokenLimited,
+    tokenResetTime
   };
 }
