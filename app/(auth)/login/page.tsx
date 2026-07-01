@@ -103,18 +103,14 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="relative w-full">
                 {lastUsedMethod === 'google' && (
-                  <span className="absolute -top-2 right-4 z-10 rounded-full bg-brand-green px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-md animate-bounce">
+                  <span className="absolute -top-2 right-3 z-10 rounded-md bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-brand-forest shadow-sm">
                     Last used
                   </span>
                 )}
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
-                  className={`group flex w-full items-center justify-center gap-4 rounded-full border py-4 px-6 text-[15px] font-medium text-white transition-all active:scale-[0.98] shadow-2xl cursor-pointer ${
-                    lastUsedMethod === 'google'
-                      ? 'border-brand-green/30 bg-brand-green/10 hover:bg-brand-green/20'
-                      : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-                  }`}
+                  className="group flex w-full items-center justify-center gap-4 rounded-2xl border border-white/10 bg-white/5 py-4 px-6 text-[15px] font-medium text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-[0.98] shadow-2xl cursor-pointer"
                 >
                   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                     <path
@@ -154,18 +150,14 @@ export default function LoginPage() {
             {!showEmailForm && !emailSent && (
               <div className="relative w-full">
                 {lastUsedMethod === 'email' && (
-                  <span className="absolute -top-2 right-4 z-10 rounded-full bg-brand-green px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-md animate-bounce">
+                  <span className="absolute -top-2 right-3 z-10 rounded-md bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-brand-forest shadow-sm">
                     Last used
                   </span>
                 )}
                 <button
                   type="button"
                   onClick={() => setShowEmailForm(true)}
-                  className={`group flex w-full items-center justify-center gap-3 rounded-full border py-4 px-6 text-[15px] font-medium text-white transition-all active:scale-[0.98] cursor-pointer ${
-                    lastUsedMethod === 'email'
-                      ? 'border-brand-green/30 bg-brand-green/10 hover:bg-brand-green/20'
-                      : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
-                  }`}
+                  className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/5 py-4 px-6 text-[15px] font-medium text-white transition-all hover:bg-white/10 hover:border-white/20 active:scale-[0.98] cursor-pointer"
                 >
                   <Mail className="w-5 h-5 shrink-0 text-white/70 group-hover:text-white transition-colors" />
                   Continue with Email

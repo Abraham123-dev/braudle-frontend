@@ -25,13 +25,13 @@ export const FAQ = () => {
   ];
 
   return (
-    <section id="faq" className="py-24 px-8 scroll-mt-20">
+    <section id="faq" className="py-14 md:py-24 px-5 sm:px-8 scroll-mt-20">
       <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl lg:text-5xl font-semibold text-gray-950 tracking-tight">Frequently Asked Questions</h2>
+        <div className="text-center mb-10 md:mb-16">
+          <h2 className="text-2xl sm:text-3xl lg:text-5xl font-semibold text-gray-950 tracking-tight">Frequently Asked Questions</h2>
         </div>
-        
-        <div className="space-y-4">
+
+        <div className="space-y-1">
           {faqs.map((faq, i) => (
             <FAQItem key={i} question={faq.question} answer={faq.answer} />
           ))}
@@ -48,10 +48,10 @@ const FAQItem = ({ question, answer }: { question: string; answer: string }) => 
     <div className="border-b border-gray-100 last:border-0">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-6 flex items-center justify-between text-left hover:text-brand-green transition-colors"
+        className="w-full py-5 flex items-center justify-between text-left hover:text-brand-green transition-colors gap-4"
       >
-        <span className="text-lg font-semibold text-gray-900">{question}</span>
-        {isOpen ? <Minus className="w-5 h-5 text-gray-400" /> : <Plus className="w-5 h-5 text-gray-400" />}
+        <span className="text-[15px] sm:text-base md:text-lg font-semibold text-gray-900 leading-snug">{question}</span>
+        {isOpen ? <Minus className="w-4 h-4 text-gray-400 shrink-0" /> : <Plus className="w-4 h-4 text-gray-400 shrink-0" />}
       </button>
       <AnimatePresence>
         {isOpen && (
@@ -62,7 +62,7 @@ const FAQItem = ({ question, answer }: { question: string; answer: string }) => 
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <p className="pb-6 text-gray-500 font-normal leading-relaxed">
+            <p className="pb-5 text-gray-500 font-normal leading-relaxed text-sm md:text-base">
               {answer}
             </p>
           </motion.div>
