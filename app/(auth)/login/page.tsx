@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
-import { Mail } from 'lucide-react';
+import { Mail, ArrowLeft } from 'lucide-react';
 
 export default function LoginPage() {
   // Silent auth check - redirects to dashboard if already logged in
@@ -57,8 +57,15 @@ export default function LoginPage() {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen bg-brand-charcoal font-sans antialiased flex flex-col items-center lg:justify-center justify-start p-8 pt-24 lg:pt-8 animate-pulse select-none">
-        <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24">
+      <div className="min-h-screen bg-brand-charcoal font-sans antialiased flex flex-col items-center justify-center p-6 py-12 lg:p-8 animate-pulse select-none relative">
+        <Link 
+          href="/" 
+          className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center justify-center w-10 h-10 rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 cursor-pointer shadow-lg"
+          aria-label="Back to home"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-24">
           <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-8">
             <div className="space-y-3 w-full max-w-sm">
               <div className="w-10 h-10 bg-white/5 rounded-lg mb-8 hidden lg:block" />
@@ -71,7 +78,7 @@ export default function LoginPage() {
               <div className="h-12 bg-white/5 rounded-full" />
             </div>
           </div>
-          <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
+          <div className="hidden lg:flex w-full lg:w-1/2 items-center justify-center lg:justify-end">
             <div className="w-full aspect-[4/5] max-w-sm rounded-[32px] bg-white/5" />
           </div>
         </main>
@@ -80,8 +87,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-charcoal font-sans antialiased flex flex-col items-center lg:justify-center justify-start p-8 pt-24 lg:pt-8">
-      <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24">
+    <div className="min-h-screen bg-brand-charcoal font-sans antialiased flex flex-col items-center justify-center p-6 py-12 lg:p-8 relative">
+      <Link 
+        href="/" 
+        className="absolute top-6 left-6 sm:top-8 sm:left-8 flex items-center justify-center w-10 h-10 rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 cursor-pointer shadow-lg"
+        aria-label="Back to home"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </Link>
+      <main className="max-w-5xl w-full flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-24">
         {/* Left Side: Auth Section */}
         <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-8">
           <div className="space-y-3">
@@ -90,10 +104,10 @@ export default function LoginPage() {
                  <div className="w-5 h-5 bg-brand-lime rounded-sm rotate-45" />
              </div>
              
-             <h1 className="text-4xl lg:text-5xl font-semibold text-white leading-[1.2] tracking-tight">
+             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white leading-[1.2] tracking-tight">
                 Welcome to <span className="text-brand-green">Braudle</span>
              </h1>
-             <p className="text-lg lg:text-xl text-gray-400 font-medium tracking-tight">
+             <p className="text-base sm:text-lg lg:text-xl text-gray-400 font-medium tracking-tight">
                Your AI tutor for deep learning
              </p>
           </div>
@@ -239,7 +253,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side: Consistent Brand Image */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
+        <div className="hidden lg:flex w-full lg:w-1/2 items-center justify-center lg:justify-end">
           <div className="relative w-full aspect-[4/5] max-w-sm rounded-[32px] overflow-hidden bg-brand-forest p-10 flex flex-col justify-end shadow-2xl">
             <div className="absolute inset-0 z-0 group">
               <img 

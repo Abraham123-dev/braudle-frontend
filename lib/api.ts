@@ -131,11 +131,21 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
         errorData = await response.json();
       } catch {}
       
-      const message = errorData?.message || response.statusText;
-      const error: any = new Error(message);
+      const rawMessage = errorData?.message || response.statusText;
+      const errorId = errorData?.errorId || null;
+      
+      // Standardize system error messages for 5xx errors
+      let clientMessage = rawMessage;
+      if (response.status >= 500) {
+        clientMessage = 'An unexpected error occurred on our end. Please try again later.';
+      }
+      
+      const error: any = new Error(clientMessage);
       error.status = response.status;
       error.code = errorData?.code;
       error.responseStatus = errorData?.status || 'error';
+      error.errorId = errorId;
+      error.rawMessage = rawMessage;
       throw error;
     }
 
@@ -144,6 +154,8 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     // If it is a connection/network issue (no HTTP status code)
     if (!error.status) {
       useStore.getState().setConnectionError(true);
+      error.message = 'Unable to connect to the server. Please check your internet connection and try again.';
+      error.isNetworkError = true;
     }
     throw error;
   }

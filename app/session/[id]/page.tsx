@@ -175,7 +175,11 @@ export default function SessionPage({ params }: SessionPageProps) {
     fetchSessionQuizzes,
     activeSuggestions,
     isTokenLimited,
-    tokenResetTime
+    tokenResetTime,
+    activeSessionError,
+    setActiveSessionError,
+    triggerTutorStream,
+    lastSentMessage
   } = useSession(sessionId);
 
   const user = useStore((state) => state.user);
@@ -1120,6 +1124,47 @@ export default function SessionPage({ params }: SessionPageProps) {
                     </div>
                   )}
 
+                {/* Active Session Error Banner */}
+                {activeSessionError && (
+                  <div className="relative overflow-hidden rounded-2xl border border-rose-200 bg-rose-50/70 p-4 animate-in slide-in-from-bottom-2 duration-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-xs font-bold text-rose-800 leading-snug">
+                          {activeSessionError.message}
+                        </p>
+                        {activeSessionError.errorId && (
+                          <span className="text-[9px] text-rose-600/70 font-semibold block mt-1">
+                            Error ID: {activeSessionError.errorId}
+                          </span>
+                        )}
+                        
+                        <div className="flex gap-2.5 mt-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (lastSentMessage) {
+                                triggerTutorStream(lastSentMessage);
+                              }
+                            }}
+                            className="px-3.5 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-[10px] font-extrabold shadow-3xs cursor-pointer select-none active:scale-[0.98] transition-all"
+                          >
+                            Retry
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveSessionError(null)}
+                            className="px-3.5 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-800 rounded-lg text-[10px] font-extrabold cursor-pointer select-none active:scale-[0.98] transition-all"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Token Limit Lock Banner — shown when 429 hits */}
                 {isTokenLimited ? (

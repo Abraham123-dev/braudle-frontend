@@ -136,6 +136,10 @@ export function useSession(sessionId: string) {
   const [isTokenLimited, setIsTokenLimited] = useState(false);
   const [tokenResetTime, setTokenResetTime] = useState<string | null>(null);
 
+  // Active session stream error & last prompt state
+  const [activeSessionError, setActiveSessionError] = useState<{ message: string; errorId?: string | null } | null>(null);
+  const [lastSentMessage, setLastSentMessage] = useState<string>('');
+
   // Time-aware greeting
   const [timeGreeting, setTimeGreeting] = useState('Ready to study');
 
@@ -272,6 +276,7 @@ export function useSession(sessionId: string) {
     isStreamingRef.current = true;
     setIsStreaming(true);
     setStreamingContent('');
+    setActiveSessionError(null);
 
     try {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -295,7 +300,11 @@ export function useSession(sessionId: string) {
           setTokenResetTime(resetAt);
           return; // Don't throw — we handle it via the lock UI
         }
-        throw new Error(errorData.message || 'Failed to connect to tutoring engine.');
+        
+        const err: any = new Error(errorData.message || 'Failed to connect to tutoring engine.');
+        err.status = response.status;
+        err.errorId = errorData.errorId || null;
+        throw err;
       }
 
       const reader = response.body?.getReader();
@@ -325,40 +334,48 @@ export function useSession(sessionId: string) {
 
             try {
               const parsed = JSON.parse(dataStr);
-            if (parsed.token) {
-              accumulatedText += parsed.token;
-              
-              // Clean dynamic tags out of active streaming view
-              let cleanStream = accumulatedText;
-              cleanStream = cleanStream.split('[SUGGESTIONS:')[0];
-              cleanStream = cleanStream.split('[QUIZ_QUESTION:')[0];
-              setStreamingContent(cleanStream.trim());
-            } else if (parsed.error) {
-              throw new Error(parsed.error);
+              if (parsed.token) {
+                accumulatedText += parsed.token;
+                
+                // Clean dynamic tags out of active streaming view
+                let cleanStream = accumulatedText;
+                cleanStream = cleanStream.split('[SUGGESTIONS:')[0];
+                cleanStream = cleanStream.split('[QUIZ_QUESTION:')[0];
+                setStreamingContent(cleanStream.trim());
+              } else if (parsed.error) {
+                const err: any = new Error(parsed.error);
+                err.errorId = parsed.errorId || null;
+                throw err;
+              }
+            } catch (e) {
+              // JSON parse issues can occur if S3 chunks split characters
             }
-          } catch (e) {
-            // JSON parse issues can occur if S3 chunks split characters
           }
         }
       }
-    }
 
-    if (accumulatedText) {
-      const parsedMsg = parseMessageTags({ role: 'assistant', content: accumulatedText });
-      setMessages(prev => [...prev, parsedMsg]);
+      if (accumulatedText) {
+        const parsedMsg = parseMessageTags({ role: 'assistant', content: accumulatedText });
+        setMessages(prev => [...prev, parsedMsg]);
+      }
+    } catch (err: any) {
+      console.error(err);
+      
+      let clientMessage = err.message || 'Tutoring connection timed out. Please check your internet connection.';
+      if (err.status >= 500 || !err.status) {
+        clientMessage = 'An unexpected error occurred. We are having trouble communicating with the server.';
+      }
+      
+      setActiveSessionError({
+        message: clientMessage,
+        errorId: err.errorId || null
+      });
+    } finally {
+      setStreamingContent('');
+      setIsStreaming(false);
+      isStreamingRef.current = false;
     }
-  } catch (err: any) {
-    console.error(err);
-    setMessages(prev => [
-      ...prev, 
-      { role: 'assistant', content: `Error: ${err.message || 'Tutoring connection timed out. Please try sending your prompt again.'}` }
-    ]);
-  } finally {
-    setStreamingContent('');
-    setIsStreaming(false);
-    isStreamingRef.current = false;
-  }
-};
+  };
 
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -366,6 +383,8 @@ export function useSession(sessionId: string) {
 
     const userText = input.trim();
     setInput('');
+    setActiveSessionError(null);
+    setLastSentMessage(userText);
     setMessages(prev => [...prev, { role: 'user', content: userText }]);
     triggerTutorStream(userText);
   };
@@ -374,6 +393,7 @@ export function useSession(sessionId: string) {
     if (isStreamingRef.current || isStreaming) return;
     try {
       setActiveMode(mode);
+      setActiveSessionError(null);
       await api.patch(`/sessions/${sessionId}/state`, { mode });
       setMessages(prev => [...prev, { role: 'system', content: `Study method switched to ${mode.toUpperCase()}.` }]);
       if (!skipAiTrigger) {
@@ -543,6 +563,10 @@ export function useSession(sessionId: string) {
     fetchSessionQuizzes,
     activeSuggestions,
     isTokenLimited,
-    tokenResetTime
+    tokenResetTime,
+    activeSessionError,
+    setActiveSessionError,
+    triggerTutorStream,
+    lastSentMessage
   };
 }
