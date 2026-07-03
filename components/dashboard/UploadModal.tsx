@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api, fetchWithRefresh } from '@/lib/api';
 import { X, Upload, FileText, AlertCircle, Compass } from 'lucide-react';
+import { useStore } from '@/lib/store';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -29,6 +30,23 @@ const INGESTION_PROGRESS_MAP: Record<string, number> = {
 };
 
 export default function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
+  const user = useStore((state) => state.user);
+  const userPlan = user?.plan || 'free';
+
+  const getUploadLimit = () => {
+    if (userPlan === 'pro') return 50 * 1024 * 1024; // 50MB
+    if (userPlan === 'plus') return 25 * 1024 * 1024; // 25MB
+    return 11 * 1024 * 1024; // 11MB for Free (approx 10MB)
+  };
+
+  const getLimitLabel = () => {
+    if (userPlan === 'pro') return '50MB';
+    if (userPlan === 'plus') return '25MB';
+    return '10MB';
+  };
+
+  const limitLabel = getLimitLabel();
+
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
@@ -66,8 +84,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         setError('Only PDF documents and image files (PNG, JPG, WEBP) are supported.');
         return;
       }
-      if (isPdf && selectedFile.size >= 11 * 1024 * 1024) {
-        setError("PDF files must be under 11MB (up to 10.99MB allowed).");
+      const maxLimit = getUploadLimit();
+      if (isPdf && selectedFile.size > maxLimit) {
+        setError(`PDF files must be under ${limitLabel} for your ${userPlan.toUpperCase()} plan.`);
         return;
       }
       setFile(selectedFile);
@@ -100,8 +119,9 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         setError('Only PDF documents and image files (PNG, JPG, WEBP) are supported.');
         return;
       }
-      if (isPdf && selectedFile.size >= 11 * 1024 * 1024) {
-        setError("PDF files must be under 11MB (up to 10.99MB allowed).");
+      const maxLimit = getUploadLimit();
+      if (isPdf && selectedFile.size > maxLimit) {
+        setError(`PDF files must be under ${limitLabel} for your ${userPlan.toUpperCase()} plan.`);
         return;
       }
       setFile(selectedFile);
@@ -173,34 +193,39 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     }, 150);
 
     try {
-      // 1. Prepare FormData
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', title.trim());
-      formData.append('subject', subject.trim() || 'General');
+      // 1. Request presigned upload URL from backend
+      const presignRes = await api.post<{ uploadUrl: string; documentId: string }>('/documents/presigned-url', {
+        filename: file.name,
+        contentType: file.type,
+        title: title.trim(),
+        subject: subject.trim() || 'General'
+      });
 
-      // 2. Perform upload via backend server
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const uploadResponse = await fetchWithRefresh(`${apiBaseUrl}/documents/upload`, {
-        method: 'POST',
-        body: formData
+      if (!presignRes.uploadUrl || !presignRes.documentId) {
+        throw new Error('Failed to get upload authorization from server.');
+      }
+
+      const { uploadUrl, documentId } = presignRes;
+
+      // 2. Perform direct PUT upload to Cloudflare R2
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type
+        }
       });
 
       clearInterval(uploadTimer);
 
       if (!uploadResponse.ok) {
-        let errorData;
-        try {
-          errorData = await uploadResponse.json();
-        } catch {}
-        throw new Error(errorData?.message || 'Direct upload via server failed.');
+        throw new Error('Direct-to-cloud file streaming failed.');
       }
 
-      const { documentId } = await uploadResponse.json();
-
-      if (!documentId) {
-        throw new Error('Incomplete upload confirmation from server.');
-      }
+      // 3. Confirm completed upload to start backend parser ingestion
+      await api.post('/documents/confirm-upload', {
+        documentId
+      });
 
       setUnifiedProgress(48);
       setUnifiedStageLabel('Initializing study session...');
@@ -313,11 +338,11 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
                     <Upload className="w-4 h-4 sm:w-5 h-5" />
                   </div>
                   <h3 className="font-bold text-xs text-brand-forest mb-0.5">
-                    <span className="hidden sm:inline">Drag and drop your PDF (max 10MB) or image here</span>
-                    <span className="sm:hidden">Tap to upload PDF (max 10MB) or image</span>
+                    <span className="hidden sm:inline">Drag and drop your PDF (max {limitLabel}) or image here</span>
+                    <span className="sm:hidden">Tap to upload PDF (max {limitLabel}) or image</span>
                   </h3>
                   <p className="text-[10px] text-gray-400 hidden sm:block">
-                    Or click to browse files from your computer (PDFs must be under 11MB)
+                    Or click to browse files from your computer (PDFs must be under {limitLabel})
                   </p>
                 </div>
               ) : (

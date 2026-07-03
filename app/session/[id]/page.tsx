@@ -558,7 +558,7 @@ export default function SessionPage({ params }: SessionPageProps) {
 
     // Check limit
     const userPlan = user?.plan || 'free';
-    const isPro = userPlan === 'plus' || userPlan === 'large';
+    const isPro = userPlan === 'plus' || userPlan === 'pro';
     if (!isPro) {
       const lastGenTimeStr = localStorage.getItem('braudle_last_generated_flashcards');
       if (lastGenTimeStr) {
@@ -909,6 +909,25 @@ export default function SessionPage({ params }: SessionPageProps) {
                         </p>
                       </div>
                     </div>
+
+                    {topics && topics.length > 0 && (
+                      <div className="pt-5 border-t border-gray-200/50 space-y-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60 block">
+                          Suggested: Ask about a key concept from your notes
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {topics.slice(0, 6).map((topic, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => handleConceptClick(topic)}
+                              className="px-3.5 py-2 rounded-xl bg-brand-yellow/10 hover:bg-brand-yellow/20 border border-brand-yellow/20 hover:border-brand-yellow/30 text-xs font-bold text-brand-forest hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer shadow-3xs"
+                            >
+                              🔍 Explain {topic}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1072,7 +1091,10 @@ export default function SessionPage({ params }: SessionPageProps) {
                       {[
                         ...(activeSuggestions && activeSuggestions.length > 0
                           ? activeSuggestions.map((suggestionText, idx) => ({ id: `dyn-${idx}`, label: suggestionText }))
-                          : []
+                          : (topics && topics.length > 0
+                              ? topics.slice(0, 3).map((t, idx) => ({ id: `concept-${idx}`, label: `🔍 Explain ${t}` }))
+                              : []
+                            )
                         ),
                         { id: 'analogy', label: '💡 Give an Analogy' },
                         { id: 'explain', label: '📖 Explain Core Idea' },
@@ -1090,6 +1112,9 @@ export default function SessionPage({ params }: SessionPageProps) {
                                 const sendBtn = document.getElementById('chat-send-btn');
                                 sendBtn?.click();
                               }, 50);
+                            } else if (pill.id.startsWith('concept-')) {
+                              const cleanLabel = pill.label.replace(/^🔍 Explain /, '');
+                              handleConceptClick(cleanLabel);
                             } else {
                               if (pill.id === 'explain') {
                                 setInput('Explain the core idea of this section in simple terms.');
@@ -1280,7 +1305,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                           {rightPanelTab === 'studio' 
                             ? 'Braudle Modes' 
                             : rightPanelTab === 'quiz' 
-                              ? (isExamSession ? 'Exam Simulation' : 'Physics Quiz') 
+                              ? (isExamSession ? 'Exam Simulation' : 'Practice Quiz') 
                               : rightPanelTab === 'summary'
                                 ? 'PDF Study Summary'
                                 : 'Flashcard Deck'}
@@ -1596,7 +1621,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  window.location.href = '/#pricing';
+                                  useStore.getState().setPricingModalOpen(true);
                                 }}
                                 className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center active:scale-[0.98] shadow-3xs"
                               >

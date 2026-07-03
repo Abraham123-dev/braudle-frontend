@@ -102,9 +102,10 @@ export default function SettingsPage() {
         setUser(res.user);
       }
 
-      // Fetch fresh profile state
-      const updatedProfile = await api.get<any>('/profile');
-      setProfile(updatedProfile);
+      // Update fresh profile state directly from response to save network latency
+      if (res.profile) {
+        setProfile(res.profile);
+      }
 
       setSaveSuccess(true);
       setAvatarFile(null);
@@ -199,6 +200,9 @@ export default function SettingsPage() {
                     <div className="min-w-0">
                       <h3 className="font-extrabold text-sm text-brand-forest truncate">{user?.name}</h3>
                       <p className="text-[11px] text-gray-400 font-semibold truncate mt-0.5">{user?.email}</p>
+                      <p className="text-[9px] text-brand-green font-bold uppercase tracking-wider mt-1 select-none">
+                        Click picture to change avatar
+                      </p>
                     </div>
                   </div>
 
@@ -338,7 +342,7 @@ export default function SettingsPage() {
                       className="inline-flex items-center gap-2 px-6 py-3 bg-brand-green hover:bg-brand-green/90 text-white font-bold text-xs rounded-xl active:scale-[0.98] transition-all cursor-pointer shadow-xs disabled:opacity-40"
                     >
                       <Save className="w-4 h-4" />
-                      <span>{saving ? 'Saving...' : 'Save Configuration'}</span>
+                      <span>{saving ? 'Updating...' : 'Update Profile & Settings'}</span>
                     </button>
                   </div>
                 </form>

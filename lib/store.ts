@@ -43,6 +43,10 @@ interface BraudleState {
   setProfile: (profile: StudentProfile | null) => void;
   setIsLoading: (isLoading: boolean) => void;
 
+  // Global pricing modal state
+  isPricingModalOpen: boolean;
+  setPricingModalOpen: (open: boolean) => void;
+
   isOffline: boolean;
   connectionError: boolean;
   setIsOffline: (isOffline: boolean) => void;
@@ -77,6 +81,8 @@ export const useStore = create<BraudleState>((set) => ({
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setProfile: (profile) => set({ profile }),
   setIsLoading: (isLoading) => set({ isLoading }),
+  isPricingModalOpen: false,
+  setPricingModalOpen: (open) => set({ isPricingModalOpen: open }),
   isOffline: false,
   connectionError: false,
   setIsOffline: (isOffline) => set({ isOffline }),

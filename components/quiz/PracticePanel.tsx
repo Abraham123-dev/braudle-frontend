@@ -133,7 +133,7 @@ export default function PracticePanel({
 
   const checkGenerationLimit = (type: 'quiz' | 'exam'): { limited: boolean; remainingTimeStr: string } => {
     const userPlan = user?.plan || 'free';
-    const isPro = userPlan === 'plus' || userPlan === 'large';
+    const isPro = userPlan === 'plus' || userPlan === 'pro';
     if (isPro) return { limited: false, remainingTimeStr: '' };
 
     const lastGenKey = type === 'exam' ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
@@ -564,7 +564,7 @@ export default function PracticePanel({
             {/* Hint dropdown under the actions bar */}
             {isHintOpen && !gradedQuestions[quiz.questions[currentQuestionIdx]?._id] && (
               <div className="p-3.5 bg-zinc-50 border border-zinc-200/40 rounded-xl text-xs sm:text-sm text-zinc-500 font-medium leading-relaxed max-w-sm animate-in fade-in duration-200 text-left">
-                💡 Focus on the concepts of <strong className="text-zinc-600 font-semibold">{quiz.questions[currentQuestionIdx]?.topic || 'this section'}</strong>. Review how this fits into the document summary equations.
+                💡 Focus on the core principles of <strong className="text-zinc-600 font-semibold">{quiz.questions[currentQuestionIdx]?.topic || 'this section'}</strong>. Review how this concept is defined and applied in your study notes.
               </div>
             )}
           </div>
@@ -740,7 +740,7 @@ export default function PracticePanel({
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = '/#pricing';
+                  useStore.getState().setPricingModalOpen(true);
                 }}
                 className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer text-center active:scale-[0.98] shadow-3xs"
               >

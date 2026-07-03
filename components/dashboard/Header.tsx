@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { auth } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { Pricing } from '@/components/landing/Pricing';
 import { 
   Search, BookOpen, Plus, LogOut, Settings, 
   User as UserIcon, X, Check, Award, Book, Compass, Shield,
@@ -22,7 +23,7 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, setUser } = useStore();
+  const { user, setUser, isPricingModalOpen, setPricingModalOpen } = useStore();
   
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -36,6 +37,22 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch latest user details on mount to ensure plan state is fresh
+  useEffect(() => {
+    async function refreshUser() {
+      try {
+        const response = await api.get<{ user: any }>('/auth/me');
+        if (response.user) {
+          auth.setCurrentUser(response.user);
+          setUser(response.user);
+        }
+      } catch (err) {
+        console.error('Failed to auto-refresh header user data:', err);
+      }
+    }
+    refreshUser();
   }, []);
 
   const handleLogout = async () => {
@@ -112,10 +129,47 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
             {/* Upload Button */}
             <button
               onClick={onUploadClick}
-              className="flex items-center gap-1.5 rounded-full bg-brand-green py-2 px-4 text-xs font-bold text-white hover:bg-brand-green/90 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+              className="hidden sm:flex items-center gap-1.5 rounded-full bg-brand-green py-2 px-4 text-xs font-bold text-white hover:bg-brand-green/90 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
             >
               <Plus className="w-4 h-4" /> Upload
             </button>
+
+            {/* Mobile Upgrade CTA (Replaces Upload button on mobile for free users) */}
+            {user && (user.plan === 'free' || !user.plan) && (
+              <button
+                onClick={() => setPricingModalOpen(true)}
+                className="sm:hidden flex items-center gap-1 rounded-full bg-brand-lime py-2 px-4 text-xs font-bold text-brand-green hover:bg-brand-lime/90 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+              >
+                Upgrade
+              </button>
+            )}
+
+            {/* Plan Badge / Upgrade CTA */}
+            {user && (
+              <div className="flex items-center gap-2">
+                {user.plan === 'plus' ? (
+                  <span className="inline-block px-2.5 py-1 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-[10px] font-extrabold tracking-wider uppercase select-none">
+                    ✅ Plus
+                  </span>
+                ) : user.plan === 'pro' ? (
+                  <span className="inline-block px-2.5 py-1 rounded-full bg-brand-forest text-brand-lime text-[10px] font-extrabold tracking-wider uppercase border border-brand-green/10 select-none">
+                    👑 Braudle Pro
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline-block px-2.5 py-1 rounded-full bg-gray-100 border border-gray-200 text-gray-400 text-[10px] font-extrabold tracking-wider uppercase select-none">
+                      Free Plan
+                    </span>
+                    <button
+                      onClick={() => setPricingModalOpen(true)}
+                      className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-brand-lime text-brand-green text-[10px] font-extrabold tracking-wide uppercase hover:bg-brand-lime/80 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm"
+                    >
+                      Upgrade
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* User Avatar & Dropdown */}
             <div className="relative" ref={dropdownRef}>
@@ -138,6 +192,23 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
                   <div className="px-4 py-3 border-b border-gray-50">
                     <p className="text-xs font-bold text-brand-forest truncate">{user?.name}</p>
                     <p className="text-[10px] text-gray-400 truncate mt-0.5">{user?.email}</p>
+                    {user && (
+                      <div className="mt-2">
+                        {user.plan === 'plus' ? (
+                          <span className="inline-block px-2 py-0.5 rounded bg-brand-green/10 border border-brand-green/20 text-brand-green text-[9px] font-extrabold uppercase tracking-wider">
+                            Plus Subscription
+                          </span>
+                        ) : user.plan === 'pro' ? (
+                          <span className="inline-block px-2 py-0.5 rounded bg-brand-forest text-brand-lime text-[9px] font-extrabold uppercase tracking-wider border border-brand-green/10">
+                            Pro Subscription
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-400 text-[9px] font-extrabold uppercase tracking-wider">
+                            Free Plan
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="py-1">
@@ -169,6 +240,22 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
           </div>
         </div>
       </header>
+
+      {/* Subscription Pricing Modal */}
+      {isPricingModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] w-full max-w-5xl max-h-[90vh] overflow-y-auto relative shadow-2xl border border-gray-100 p-6 sm:p-10 animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setPricingModalOpen(false)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700 cursor-pointer z-10"
+              title="Close pricing modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <Pricing />
+          </div>
+        </div>
+      )}
     </>
   );
 }
