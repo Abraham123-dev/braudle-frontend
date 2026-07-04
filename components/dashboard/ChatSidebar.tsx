@@ -11,6 +11,7 @@ import {
 import { api, fetchWithRefresh } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import MarkdownRenderer from '../tutor/MarkdownRenderer';
+import Logo from '@/components/Logo';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -478,9 +479,7 @@ export default function ChatSidebar({ isOpen, onClose }: ChatSidebarProps) {
 
   // ─── Braudle Sparkle Avatar ───
   const BraudleAvatar = () => (
-    <div className="w-8 h-8 rounded-xl bg-brand-green flex items-center justify-center shrink-0 rotate-2">
-      <div className="w-3 h-3 bg-brand-yellow rounded-sm rotate-45" />
-    </div>
+    <Logo size={32} className="rounded-lg shrink-0" />
   );
 
   // ─── Streaming Indicator Dots ───

@@ -18,6 +18,8 @@ import {
   Check
 } from 'lucide-react';
 
+import Logo from '@/components/Logo';
+
 export default function OnboardingPage() {
   const router = useRouter();
   const user = useStore((state) => state.user);
@@ -123,8 +125,9 @@ export default function OnboardingPage() {
         <header className="border-b border-gray-100 py-5 px-6">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link href="/home" className="font-semibold text-xl tracking-tight text-brand-green">
-                Braudle
+              <Link href="/home" className="flex items-center gap-2 font-semibold text-xl tracking-tight text-brand-green">
+                <Logo size={24} className="shrink-0" />
+                <span>Braudle</span>
               </Link>
             </div>
             <div className="flex items-center gap-2">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import { Mail, ArrowLeft } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 export default function LoginPage() {
   // Silent auth check - redirects to dashboard if already logged in
@@ -99,9 +100,9 @@ export default function LoginPage() {
         {/* Left Side: Auth Section */}
         <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-8">
           <div className="space-y-3">
-             {/* Simple Logo Icon */}
-             <div className="w-10 h-10 bg-brand-forest rounded-lg flex items-center justify-center mb-8 hidden lg:flex">
-                 <div className="w-5 h-5 bg-brand-lime rounded-sm rotate-45" />
+             {/* Logo Icon */}
+             <div className="mb-3 flex justify-center lg:justify-start w-full">
+                 <Logo size={56} className="w-14 h-14 shrink-0" />
              </div>
              
              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white leading-[1.2] tracking-tight">

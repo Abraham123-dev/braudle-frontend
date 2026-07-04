@@ -12,6 +12,7 @@ import {
   User as UserIcon, X, Check, Award, Book, Compass, Shield,
   MessageSquare
 } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 interface HeaderProps {
   searchQuery?: string;
@@ -23,7 +24,9 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, setUser, isPricingModalOpen, setPricingModalOpen } = useStore();
+  const user = useStore((state) => state.user);
+  const setUser = useStore((state) => state.setUser);
+  const { isPricingModalOpen, setPricingModalOpen } = useStore();
   
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,14 +42,14 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch latest user details on mount to ensure plan state is fresh
+  // Fetch fresh user metadata on mount to update plan changes
   useEffect(() => {
     async function refreshUser() {
       try {
-        const response = await api.get<{ user: any }>('/auth/me');
-        if (response.user) {
-          auth.setCurrentUser(response.user);
-          setUser(response.user);
+        const res = await api.get<{ user: any }>('/auth/me');
+        if (res.user) {
+          auth.setCurrentUser(res.user);
+          setUser(res.user);
         }
       } catch (err) {
         console.error('Failed to auto-refresh header user data:', err);
@@ -72,8 +75,9 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
           
           {/* Logo & Navigation */}
           <div className="flex items-center gap-6">
-            <Link href="/home" className="font-semibold text-xl tracking-tight text-brand-green">
-              Braudle
+            <Link href="/home" className="flex items-center gap-2 font-semibold text-xl tracking-tight text-brand-green">
+              <Logo size={24} className="shrink-0" />
+              <span>Braudle</span>
             </Link>
 
             <div className="h-4 w-px bg-gray-100 hidden sm:block" />
