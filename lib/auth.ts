@@ -14,6 +14,7 @@ export interface User {
   needsNameUpdate?: boolean;
   authProvider?: 'google' | 'email';
   plan?: 'free' | 'plus' | 'pro';
+  xp?: number;
 }
 
 // Client-side authentication persistence helper

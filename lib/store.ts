@@ -18,6 +18,9 @@ export interface StudentProfile {
   goal: string;
   learningStyle: string;
   subjects: string[];
+  xp?: number;
+  streak?: number;
+  longestStreak?: number;
 }
 
 export interface StudySession {

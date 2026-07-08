@@ -258,12 +258,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     } catch (err: any) {
       clearInterval(uploadTimer);
       console.error(err);
-      const isLimitErr = err.message?.includes('maximum PDF upload') || err.message?.includes('limit reached');
-      setError(
-        isLimitErr 
-          ? "You've reached your maximum PDF upload for the day. Come back tomorrow!" 
-          : (err.message || 'An error occurred during upload or analysis. Please try again.')
-      );
+      setError(err.message || 'An error occurred during upload or analysis. Please try again.');
       setUploading(false);
       setAnalyzing(false);
     }

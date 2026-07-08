@@ -15,6 +15,7 @@ export interface ChatMessage {
     answer: string;
     explanation: string;
   };
+  flashcards?: any[];
 }
 
 function parseMessageTags(msg: ChatMessage): ChatMessage {
@@ -23,6 +24,21 @@ function parseMessageTags(msg: ChatMessage): ChatMessage {
   let content = msg.content;
   let suggestions: string[] | undefined;
   let inlineQuiz: any | undefined;
+  let flashcards: any[] | undefined;
+
+  // Try parsing msg.content as JSON first for structured payloads
+  try {
+    const data = JSON.parse(content);
+    if (data && data.type === 'flashcards' && Array.isArray(data.cards)) {
+      content = data.message || "💡 These flashcards have been saved to your profile.";
+      flashcards = data.cards;
+      return {
+        ...msg,
+        content,
+        flashcards
+      };
+    }
+  } catch {}
 
   // Regex to match [SUGGESTIONS: [...]] or [SUGGESTIONS: "...", "..."]
   const suggestionsRegex = /\[SUGGESTIONS:\s*(?:\[([\s\S]*?)\]|([\s\S]*?))\]/i;
@@ -142,6 +158,7 @@ export function useSession(sessionId: string) {
 
   // Time-aware greeting
   const [timeGreeting, setTimeGreeting] = useState('Ready to study');
+  const [dueCount, setDueCount] = useState(0);
 
   const isInitialTriggered = useRef(false);
   const isStreamingRef = useRef(false);
@@ -174,7 +191,9 @@ export function useSession(sessionId: string) {
         // Track documentId
         const doc = sessionRes.session.documentId;
         if (doc) {
-          setDocumentId(doc._id || doc);
+          const docId = doc._id || doc;
+          setDocumentId(docId);
+          fetchDueCount(docId);
         }
         
         // Check if document is still processing
@@ -483,6 +502,39 @@ export function useSession(sessionId: string) {
     }
   };
 
+  const fetchDueCount = async (docId?: string) => {
+    const targetDocId = docId || documentId;
+    if (!targetDocId) return;
+    try {
+      const res = await api.get<any>(`/mastery/due?documentId=${targetDocId}`);
+      if (res && res.dueConcepts) {
+        setDueCount(res.dueConcepts.length);
+      }
+    } catch (e) {
+      console.error('Failed to fetch due count:', e);
+    }
+  };
+
+  const handleRateConcept = async (conceptName: string, quality: number) => {
+    if (!documentId) return;
+    try {
+      await api.post<any>('/mastery/review', {
+        documentId,
+        conceptName,
+        quality
+      });
+      if (user) {
+        setUser({
+          ...user,
+          xp: (user.xp || 0) + 5
+        });
+      }
+      await fetchDueCount();
+    } catch (e) {
+      console.error('Failed to rate concept:', e);
+    }
+  };
+
   const handleGradeQuestion = async (questionId: string, answer: string) => {
     if (!quiz) return null;
     try {
@@ -567,6 +619,8 @@ export function useSession(sessionId: string) {
     activeSessionError,
     setActiveSessionError,
     triggerTutorStream,
-    lastSentMessage
+    lastSentMessage,
+    dueCount,
+    handleRateConcept
   };
 }
