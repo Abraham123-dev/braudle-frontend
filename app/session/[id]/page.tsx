@@ -153,6 +153,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     docTitle,
     topics,
     messages,
+    setMessages,
     input,
     setInput,
     activeMode,
@@ -234,24 +235,59 @@ export default function SessionPage({ params }: SessionPageProps) {
   const [centerTab, setCenterTab] = React.useState<'chat' | 'map'>('chat');
 
   // ── Braudle Map Handlers ──────────────────────────────────────────────────
-  const handleMapAskTutor = (conceptName: string) => {
+  const handleMapAskTutor = async (conceptName: string) => {
     setCenterTab('chat');
     setActiveMobileTab('chat');
-    setInput(`Explain the concept "${conceptName}" in complete depth. Use Socratic analogies, clear examples, and finish by checking my understanding so we make sure I completely master it.`);
-    setTimeout(() => {
-      const sendBtn = document.getElementById('chat-send-btn');
-      sendBtn?.click();
-    }, 150);
+    try {
+      await handleModeChange('understand', true);
+      await triggerTutorStream(`Initiate Socratic teaching session: Focus on the concept "${conceptName}". Teach me this concept using analogies and interactive questions, and check my understanding as we go.`);
+    } catch (err: any) {
+      console.error('Failed to initiate concept tutor:', err);
+    }
   };
 
   const handleMapStudyFlashcards = async (conceptName: string) => {
     setRightPanelTab('flashcards');
     setShowRightPane(true);
     setFlashcardFocus(conceptName);
+    setIsGeneratingFlashcards(true);
+    setFlashcardLimitError(null);
     try {
-      await handleCreateCustomFlashcards(10, conceptName);
+      const response = await api.post<{ status: string; flashcards: FlashcardItem[] }>(
+        `/documents/${documentId}/concept-flashcards`,
+        { conceptName, sessionId }
+      );
+      if (response && Array.isArray(response.flashcards)) {
+        // Construct user and assistant messages representing this flashcard deck
+        const userText = `Please generate exactly 10 flashcards from our study materials. Focus on the concept: "${conceptName}"`;
+        const formattedLines = response.flashcards.map(fc => 
+          `FLASHCARD | TOPIC: ${fc.topic} | FRONT: ${fc.front} | BACK: ${fc.back}`
+        );
+        formattedLines.push(`💡 These flashcards have been saved to your profile. Want to keep studying, try a practice question, or move to the next section?`);
+        const assistantText = formattedLines.join('\n');
+
+        const newMsgUser = {
+          role: 'user' as const,
+          content: userText,
+          timestamp: new Date().toISOString()
+        };
+        const newMsgAssistant = {
+          role: 'assistant' as const,
+          content: assistantText,
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prev => [...prev, newMsgUser, newMsgAssistant]);
+      }
     } catch (err: any) {
-      console.error('Failed to auto-create concept flashcards:', err);
+      console.error('Failed to generate concept flashcards:', err);
+      if (err.message && (err.message.includes('limit') || err.message.includes('cooldown'))) {
+        setFlashcardLimitError('Limit reached. Please retry tomorrow.');
+      } else {
+        alert(err.message || 'Failed to auto-create concept flashcards.');
+      }
+    } finally {
+      setIsGeneratingFlashcards(false);
     }
   };
 
@@ -262,7 +298,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     setQuiz(null);
     setQuizResult(null);
     try {
-      await handleGenerateQuiz('objective', numQuestions, `Focus on the concept: ${conceptName}`, false, difficulty);
+      await handleGenerateQuiz('objective', numQuestions, `Focus on the concept: ${conceptName}`, false, difficulty, 0, 'instant', conceptName);
     } catch (err: any) {
       console.error('Failed to auto-generate concept quiz:', err);
     }
@@ -566,13 +602,26 @@ export default function SessionPage({ params }: SessionPageProps) {
     // Check limit
     const userPlan = user?.plan || 'free';
     const isPro = userPlan === 'plus' || userPlan === 'pro';
+    const userId = user?.id || user?._id || 'guest';
     if (!isPro) {
-      const lastGenTimeStr = localStorage.getItem('braudle_last_generated_flashcards');
+      const lastGenTimeStr = localStorage.getItem(`braudle_last_generated_flashcards_${userId}`);
       if (lastGenTimeStr) {
-        const lastGenTime = Number(lastGenTimeStr);
+        let timestamps: number[] = [];
+        try {
+          timestamps = JSON.parse(lastGenTimeStr);
+          if (!Array.isArray(timestamps)) {
+            timestamps = [Number(lastGenTimeStr)];
+          }
+        } catch {
+          timestamps = [Number(lastGenTimeStr)];
+        }
+
         const cooldown = 24 * 60 * 60 * 1000;
-        if (Date.now() - lastGenTime < cooldown) {
-          const remainingMs = cooldown - (Date.now() - lastGenTime);
+        timestamps = timestamps.filter(t => Date.now() - t < cooldown);
+
+        if (timestamps.length >= 3) {
+          const oldest = Math.min(...timestamps);
+          const remainingMs = cooldown - (Date.now() - oldest);
           const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
           let remainingStr = '';
           if (remainingHours >= 24) {
@@ -598,7 +647,20 @@ export default function SessionPage({ params }: SessionPageProps) {
       setCurrentFlashcardIdx(0);
       setIsFlipped(false);
       
-      localStorage.setItem('braudle_last_generated_flashcards', Date.now().toString());
+      const lastGenTimeStr = localStorage.getItem(`braudle_last_generated_flashcards_${userId}`);
+      let timestamps: number[] = [];
+      if (lastGenTimeStr) {
+        try {
+          timestamps = JSON.parse(lastGenTimeStr);
+          if (!Array.isArray(timestamps)) {
+            timestamps = [Number(lastGenTimeStr)];
+          }
+        } catch {
+          timestamps = [Number(lastGenTimeStr)];
+        }
+      }
+      timestamps.push(Date.now());
+      localStorage.setItem(`braudle_last_generated_flashcards_${userId}`, JSON.stringify(timestamps));
 
       setInput(userText);
       setTimeout(() => {

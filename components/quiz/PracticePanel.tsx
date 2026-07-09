@@ -151,13 +151,28 @@ export default function PracticePanel({
   const checkGenerationLimit = (type: 'quiz' | 'exam') => {
     const plan = user?.plan || 'free';
     if (plan === 'plus' || plan === 'pro') return { limited: false, remainingTimeStr: '' };
-    const key = type === 'exam' ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz';
+    const userId = user?.id || user?._id || 'guest';
+    const key = type === 'exam' ? `braudle_last_generated_exam_${userId}` : `braudle_last_generated_quiz_${userId}`;
     const stored = localStorage.getItem(key);
     if (!stored) return { limited: false, remainingTimeStr: '' };
-    const diff = Date.now() - Number(stored);
+    
+    let timestamps: number[] = [];
+    try {
+      timestamps = JSON.parse(stored);
+      if (!Array.isArray(timestamps)) {
+        timestamps = [Number(stored)];
+      }
+    } catch {
+      timestamps = [Number(stored)];
+    }
+
     const cooldown = 86400000;
-    if (diff < cooldown) {
-      const hrs = Math.ceil((cooldown - diff) / 3600000);
+    timestamps = timestamps.filter(t => Date.now() - t < cooldown);
+
+    if (timestamps.length >= 3) {
+      const oldest = Math.min(...timestamps);
+      const remainingMs = cooldown - (Date.now() - oldest);
+      const hrs = Math.ceil(remainingMs / 3600000);
       const str = hrs >= 24 ? `${Math.floor(hrs / 24)}d ${hrs % 24}h` : `${hrs}h`;
       return { limited: true, remainingTimeStr: str };
     }
@@ -259,14 +274,18 @@ export default function PracticePanel({
 
   /* ─────────────────────────── RESULTS SCREEN ─────────────────────────── */
   const renderResults = () => {
-    const weak = quizWeakTopics.length > 0 ? quizWeakTopics : [];
-    const topicStats: Record<string, { c: number; t: number }> = {};
+    const topicStats: Record<string, { c: number; t: number; sourceSection?: number }> = {};
     quiz?.questions.forEach(q => {
       const topic = q.topic || 'General';
-      if (!topicStats[topic]) topicStats[topic] = { c: 0, t: 0 };
+      if (!topicStats[topic]) topicStats[topic] = { c: 0, t: 0, sourceSection: q.sourceSection };
       topicStats[topic].t++;
       if (gradedQuestions[q._id]?.isCorrect) topicStats[topic].c++;
     });
+    const weak = quizWeakTopics.length > 0 
+      ? quizWeakTopics 
+      : Object.entries(topicStats)
+          .filter(([, s]) => s.t > 0 && (s.c / s.t) < 0.75)
+          .map(([topic, s]) => ({ topic, accuracy: Math.round((s.c / s.t) * 100), sourceSection: s.sourceSection }));
     const strong = Object.entries(topicStats).filter(([, s]) => s.t > 0 && (s.c / s.t) >= 0.75).map(([topic, s]) => ({ topic, pct: Math.round((s.c / s.t) * 100) }));
 
     return (
@@ -695,32 +714,30 @@ export default function PracticePanel({
             </div>
           </div>
 
-          {/* ── Format (Exam only) ── */}
-          {isExam && (
-            <div className="space-y-2.5">
-              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">Question Format</label>
-              <div className="space-y-2">
-                {[
-                  { id: 'objective',   label: 'Objective / MCQ',     desc: 'Option-based recall and testing.' },
-                  { id: 'theory',      label: 'Theory / Subjective', desc: 'Written essay responses.' },
-                  { id: 'mixed',       label: 'Mixed Formats',       desc: 'Blend of objective and theory.' },
-                  { id: 'story-based', label: 'Scenario Questions',  desc: 'Real-world case studies.' },
-                ].map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setFormat(item.id as any)}
-                    className={`w-full p-3.5 rounded-[16px] border text-left transition-all cursor-pointer ${
-                      format === item.id ? 'border-brand-green bg-brand-green/5' : 'border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="font-semibold text-[13px] text-brand-forest">{item.label}</div>
-                    <div className="text-[10px] text-gray-400 font-normal mt-0.5">{item.desc}</div>
-                  </button>
-                ))}
-              </div>
+          {/* ── Question Format ── */}
+          <div className="space-y-2.5">
+            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">Question Format</label>
+            <div className="space-y-2">
+              {[
+                { id: 'objective',   label: 'Objective / MCQ',     desc: 'Option-based recall and testing.' },
+                { id: 'theory',      label: 'Theory / Subjective', desc: 'Written essay responses.' },
+                { id: 'mixed',       label: 'Mixed Formats',       desc: 'Blend of objective and theory.' },
+                { id: 'story-based', label: 'Scenario Questions',  desc: 'Real-world case studies.' },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setFormat(item.id as any)}
+                  className={`w-full p-3.5 rounded-[16px] border text-left transition-all cursor-pointer ${
+                    format === item.id ? 'border-brand-green bg-brand-green/5' : 'border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="font-semibold text-[13px] text-brand-forest">{item.label}</div>
+                  <div className="text-[10px] text-gray-400 font-normal mt-0.5">{item.desc}</div>
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* ── Question count ── */}
           <div className="space-y-2.5">
@@ -865,7 +882,7 @@ export default function PracticePanel({
                 Daily limit reached
               </div>
               <p className="text-[11px] text-red-500/90 font-normal leading-relaxed">
-                Free accounts can generate one {limitError.type} per day. Try again in <strong>{limitError.remaining}</strong>.
+                Free accounts can generate three {limitError.type}s per day. Try again in <strong>{limitError.remaining}</strong>.
               </p>
               <button
                 type="button"
@@ -882,7 +899,7 @@ export default function PracticePanel({
                 if (check.limited) { setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr }); return; }
                 try {
                   await onGenerateQuiz(
-                    isExam ? format : 'mixed',
+                    format,
                     numQuestions,
                     instructions || undefined,
                     isExam,
@@ -890,11 +907,30 @@ export default function PracticePanel({
                     isTimed ? timeLimitMinutes : 0,
                     revealStyle
                   );
-                  localStorage.setItem(isExam ? 'braudle_last_generated_exam' : 'braudle_last_generated_quiz', Date.now().toString());
+                  const userId = user?.id || user?._id || 'guest';
+                  const key = isExam ? `braudle_last_generated_exam_${userId}` : `braudle_last_generated_quiz_${userId}`;
+                  const stored = localStorage.getItem(key);
+                  let timestamps: number[] = [];
+                  if (stored) {
+                    try {
+                      timestamps = JSON.parse(stored);
+                      if (!Array.isArray(timestamps)) {
+                        timestamps = [Number(stored)];
+                      }
+                    } catch {
+                      timestamps = [Number(stored)];
+                    }
+                  }
+                  timestamps.push(Date.now());
+                  localStorage.setItem(key, JSON.stringify(timestamps));
                 } catch (err: any) {
                   const m = err.message || '';
-                  const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
-                  setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h' });
+                  if (err.status === 429 || m.toLowerCase().includes('limit') || m.toLowerCase().includes('cooldown') || m.toLowerCase().includes('available in')) {
+                    const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
+                    setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h' });
+                  } else {
+                    alert(m || 'An unexpected error occurred while generating the quiz.');
+                  }
                 }
               }}
               disabled={loadingQuiz}

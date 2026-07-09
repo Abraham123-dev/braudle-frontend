@@ -485,7 +485,8 @@ export function useSession(sessionId: string) {
     isExam?: boolean,
     difficulty?: string,
     timeLimit?: number,
-    revealStyle?: 'instant' | 'end'
+    revealStyle?: 'instant' | 'end',
+    conceptFocus?: string
   ) => {
     setLoadingQuiz(true);
     setQuizResult(null);
@@ -507,6 +508,7 @@ export function useSession(sessionId: string) {
           isExam: !!isExam,
           timeLimit: timeLimit || 0,
           revealStyle: revealStyle || 'instant',
+          conceptFocus,
         });
       } else {
         response = await api.post<any>('/quiz/generate', { sessionId });
@@ -664,6 +666,7 @@ export function useSession(sessionId: string) {
     docSummary,
     knowledgeCacheStatus,
     messages,
+    setMessages,
     input,
     setInput,
     activeMode,

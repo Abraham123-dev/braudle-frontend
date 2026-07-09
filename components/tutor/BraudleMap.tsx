@@ -162,7 +162,7 @@ export default function BraudleMap({
           <span className="text-[8px] font-black text-brand-green uppercase tracking-widest block">
             Outline Index
           </span>
-          <h3 className="font-black text-[12px] text-brand-forest leading-snug truncate" title={mapData?.title}>
+          <h3 className="font-black text-[13px] md:text-sm text-brand-forest leading-snug truncate" title={mapData?.title}>
             {mapData?.title}
           </h3>
         </div>
@@ -182,7 +182,7 @@ export default function BraudleMap({
                     : 'bg-white/85 border-zinc-200/60 text-brand-forest/80 hover:bg-white hover:border-zinc-300'
                 }`}
               >
-                <h4 className="font-extrabold text-[11px] leading-snug line-clamp-2 pr-3">
+                <h4 className="font-extrabold text-xs md:text-[13px] leading-snug line-clamp-2 pr-3">
                   {chapter.title}
                 </h4>
                 {isSelected && (
@@ -232,7 +232,7 @@ export default function BraudleMap({
               <div className="px-2.5 py-1 rounded-lg bg-brand-green/10 text-[#3D5F30] text-[9px] font-black uppercase tracking-wider">
                 {chapter.title.split(':')[0]}
               </div>
-              <h3 className="font-extrabold text-[12px] text-brand-forest">
+              <h3 className="font-extrabold text-sm text-brand-forest">
                 {chapter.title.includes(':') ? chapter.title.split(':').slice(1).join(':').trim() : chapter.title}
               </h3>
             </div>
@@ -295,10 +295,10 @@ export default function BraudleMap({
                       )}
                       
                       <div className="space-y-1">
-                        <h4 className="font-extrabold text-[12px] text-brand-forest leading-snug line-clamp-1 transition-colors duration-200 group-hover:text-[#3D5F30]">
+                        <h4 className="font-extrabold text-[13px] md:text-sm text-brand-forest leading-snug line-clamp-1 transition-colors duration-200 group-hover:text-brand-green">
                           {concept.name}
                         </h4>
-                        <p className="text-[10px] text-gray-400 font-semibold leading-relaxed line-clamp-2">
+                        <p className="text-[11px] md:text-[11.5px] text-gray-400 font-semibold leading-relaxed line-clamp-2">
                           {concept.explanation}
                         </p>
                       </div>
@@ -324,11 +324,11 @@ export default function BraudleMap({
           <div className="space-y-1.5 text-left max-w-xl flex-1">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-brand-green animate-pulse" />
-              <h4 className="font-black text-[12.5px] text-brand-forest">
+              <h4 className="font-black text-sm md:text-base text-brand-forest">
                 {selectedConcept.name}
               </h4>
             </div>
-            <p className="text-[10.5px] md:text-[11px] text-gray-400 font-semibold leading-relaxed">
+            <p className="text-[11.5px] md:text-xs text-gray-400 font-semibold leading-relaxed">
               {selectedConcept.explanation}
             </p>
           </div>
@@ -336,21 +336,21 @@ export default function BraudleMap({
           <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
             <button
               onClick={() => onAskTutor(selectedConcept.name)}
-              className="flex-1 md:flex-initial px-4 py-2.5 bg-[#3D5F30] hover:bg-[#1A2C18] text-white rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-[#3D5F30] hover:bg-[#1A2C18] text-white rounded-xl text-[10.5px] md:text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
             >
               <MessageSquare className="w-3.5 h-3.5 text-brand-lime" />
               <span>Ask Braudle</span>
             </button>
             <button
               onClick={() => onStudyFlashcards(selectedConcept.name)}
-              className="flex-1 md:flex-initial px-4 py-2.5 bg-rose-50 hover:bg-rose-100/60 border border-rose-200 text-rose-700 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-brand-forest/5 hover:bg-brand-lime/20 border border-brand-forest/20 text-brand-forest rounded-xl text-[10.5px] md:text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Flashcards</span>
             </button>
             <button
               onClick={() => setShowQuizModal(true)}
-              className="flex-1 md:flex-initial px-4 py-2.5 bg-blue-50 hover:bg-blue-100/60 border border-blue-200 text-blue-700 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-brand-green/10 hover:bg-brand-lime/30 border border-brand-green/30 text-brand-green rounded-xl text-[10.5px] md:text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
             >
               <FileQuestion className="w-3.5 h-3.5" />
               <span>Quiz</span>
@@ -366,7 +366,7 @@ export default function BraudleMap({
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                <div className="p-1.5 rounded-lg bg-brand-green/10 text-brand-green">
                   <Sliders className="w-4 h-4" />
                 </div>
                 <h4 className="font-extrabold text-xs text-brand-forest uppercase tracking-wider">
