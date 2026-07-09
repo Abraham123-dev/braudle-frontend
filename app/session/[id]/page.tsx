@@ -167,6 +167,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     submittingQuiz,
     quizResult,
     setQuizResult,
+    quizWeakTopics,
     showRightPane,
     setShowRightPane,
     handleSendMessage,
@@ -235,7 +236,7 @@ export default function SessionPage({ params }: SessionPageProps) {
   const handleMapAskTutor = (conceptName: string) => {
     setCenterTab('chat');
     setActiveMobileTab('chat');
-    setInput(`Explain the concept "${conceptName}" in detail, utilizing analogies.`);
+    setInput(`Explain the concept "${conceptName}" in complete depth. Use Socratic analogies, clear examples, and finish by checking my understanding so we make sure I completely master it.`);
     setTimeout(() => {
       const sendBtn = document.getElementById('chat-send-btn');
       sendBtn?.click();
@@ -253,14 +254,14 @@ export default function SessionPage({ params }: SessionPageProps) {
     }
   };
 
-  const handleMapGenerateQuiz = async (conceptName: string) => {
+  const handleMapGenerateQuiz = async (conceptName: string, numQuestions: number = 5, difficulty: string = 'medium') => {
     setRightPanelTab('quiz');
     setShowRightPane(true);
     setIsExamSession(false);
     setQuiz(null);
     setQuizResult(null);
     try {
-      await handleGenerateQuiz('mcq', 5, `Focus on the concept: ${conceptName}`, false);
+      await handleGenerateQuiz('objective', numQuestions, `Focus on the concept: ${conceptName}`, false, difficulty);
     } catch (err: any) {
       console.error('Failed to auto-generate concept quiz:', err);
     }
@@ -542,6 +543,20 @@ export default function SessionPage({ params }: SessionPageProps) {
       const sendBtn = document.getElementById('chat-send-btn');
       sendBtn?.click();
     }, 150);
+  };
+
+  // Review Weak Topic from quiz results — switches to chat and auto-sends a focused tutoring request
+  const handleReviewWeakTopic = (topicName: string) => {
+    setRightPanelTab('studio');
+    setShowRightPane(false);
+    setCenterTab('chat');
+    setActiveMobileTab('chat');
+    const reviewMessage = `I just finished a quiz and I struggled with "${topicName}". Can you teach me this concept step by step, check my understanding with a question, and correct any misconceptions?`;
+    setInput(reviewMessage);
+    setTimeout(() => {
+      const sendBtn = document.getElementById('chat-send-btn');
+      sendBtn?.click();
+    }, 200);
   };
 
   const handleCreateCustomFlashcards = async (count: number, focus: string) => {
@@ -1405,13 +1420,14 @@ export default function SessionPage({ params }: SessionPageProps) {
 
                    {rightPanelTab === 'quiz' && (
                      <div className="animate-in fade-in duration-200 lg:flex-1 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
-                       <PracticePanel 
+                      <PracticePanel 
                          quiz={quiz}
                          selectedAnswers={selectedAnswers}
                          setSelectedAnswers={setSelectedAnswers}
                          loadingQuiz={loadingQuiz}
                          submittingQuiz={submittingQuiz}
                          quizResult={quizResult}
+                         quizWeakTopics={quizWeakTopics}
                          onClose={() => setRightPanelTab('studio')}
                          onGenerateQuiz={handleGenerateQuiz}
                          onSubmitQuiz={handleQuizSubmit}
@@ -1419,6 +1435,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                          isExam={isExamSession}
                          onGradeQuestion={handleGradeQuestion}
                          onExplainQuestion={handleExplainQuizQuestion}
+                         onReviewWeakTopic={handleReviewWeakTopic}
                        />
                      </div>
                    )}

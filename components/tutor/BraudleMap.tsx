@@ -10,7 +10,9 @@ import {
   FileQuestion, 
   MessageSquare,
   Network,
-  RotateCcw
+  RotateCcw,
+  Sliders,
+  X
 } from 'lucide-react';
 
 interface Concept {
@@ -42,7 +44,7 @@ interface SVGPath {
 interface BraudleMapProps {
   documentId: string;
   onAskTutor: (conceptName: string) => void;
-  onGenerateQuiz: (conceptName: string) => void;
+  onGenerateQuiz: (conceptName: string, numQuestions: number, difficulty: string) => void;
   onStudyFlashcards: (conceptName: string) => void;
 }
 
@@ -58,6 +60,11 @@ export default function BraudleMap({
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
   const [mobileStep, setMobileStep] = useState<'chapters' | 'concepts'>('chapters');
+
+  // Local Quiz configuration state
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [quizQuestionsCount, setQuizQuestionsCount] = useState<number>(5);
+  const [quizDifficulty, setQuizDifficulty] = useState<string>('medium');
 
   // Layout refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,7 +100,7 @@ export default function BraudleMap({
     fetchConceptMap();
   }, [documentId]);
 
-  // Recalculate node connectors coordinates (desktop only)
+  // Recalculate connection lines coordinates (desktop only)
   const updateLayout = () => {
     if (!containerRef.current || !rootRef.current || !mapData || window.innerWidth < 768) return;
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -144,10 +151,10 @@ export default function BraudleMap({
     setPaths(newPaths);
   };
 
-  // Recalculate coordinates on adjustments
+  // Recalculate offsets on layout updates
   useLayoutEffect(() => {
     if (mapData) {
-      const timer = setTimeout(updateLayout, 100);
+      const timer = setTimeout(updateLayout, 150);
       window.addEventListener('resize', updateLayout);
       return () => {
         clearTimeout(timer);
@@ -158,7 +165,7 @@ export default function BraudleMap({
 
   const selectedChapter = mapData?.chapters.find(c => c.id === selectedChapterId);
 
-  // Bezier curve paths generator
+  // Bezier curve path helper
   const drawBezier = (path: SVGPath) => {
     const { from, to } = path;
     const dx = Math.abs(to.x - from.x);
@@ -171,9 +178,16 @@ export default function BraudleMap({
     return `M ${from.x} ${from.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${to.x} ${to.y}`;
   };
 
+  const handleStartQuiz = () => {
+    if (selectedConcept) {
+      onGenerateQuiz(selectedConcept.name, quizQuestionsCount, quizDifficulty);
+      setShowQuizModal(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center space-y-4 flex-1">
+      <div className="flex flex-col items-center justify-center p-12 text-center space-y-4 flex-1 h-full min-h-[300px]">
         <div className="w-9 h-9 rounded-xl bg-brand-green/10 text-brand-green flex items-center justify-center animate-spin">
           <Network className="w-5 h-5" />
         </div>
@@ -191,7 +205,7 @@ export default function BraudleMap({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-10 text-center space-y-4 flex-1">
+      <div className="flex flex-col items-center justify-center p-10 text-center space-y-4 flex-1 h-full min-h-[300px]">
         <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
           <RotateCcw className="w-5 h-5" />
         </div>
@@ -222,12 +236,12 @@ export default function BraudleMap({
         backgroundSize: '24px 24px'
       }}
     >
-      {/* Dynamic Connection Lines Canvas (Hidden on Mobile) */}
+      {/* SVG Canvas for connection lines (Hidden on mobile) */}
       <svg className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-0">
         <defs>
-          <linearGradient id="active-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#4A783A" />
-            <stop offset="100%" stopColor="#C2E1A6" />
+          <linearGradient id="map-active-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#3D5F30" />
+            <stop offset="100%" stopColor="#8BA476" />
           </linearGradient>
         </defs>
 
@@ -237,20 +251,19 @@ export default function BraudleMap({
               <g key={path.id}>
                 <path
                   d={drawBezier(path)}
-                  stroke="url(#active-gradient)"
+                  stroke="url(#map-active-gradient)"
                   strokeWidth="5"
                   fill="none"
-                  className="opacity-15 blur-[2.5px]"
+                  className="opacity-15 blur-[2px]"
                 />
                 <path
                   d={drawBezier(path)}
-                  stroke="url(#active-gradient)"
+                  stroke="url(#map-active-gradient)"
                   strokeWidth="2"
                   fill="none"
-                  className="stroke-[2.5px]"
                   style={{
                     strokeDasharray: '6 4',
-                    animation: 'map-flow 1.2s linear infinite'
+                    animation: 'map-line-pulse 1s linear infinite'
                   }}
                 />
               </g>
@@ -271,7 +284,7 @@ export default function BraudleMap({
       </svg>
 
       <style>{`
-        @keyframes map-flow {
+        @keyframes map-line-pulse {
           to {
             stroke-dashoffset: -20;
           }
@@ -283,15 +296,15 @@ export default function BraudleMap({
         {mobileStep === 'chapters' ? (
           <div className="space-y-4">
             {/* Subject Root Card */}
-            <div className="p-4.5 rounded-2xl bg-[#3D5F30] border border-brand-yellow/15 text-white flex items-center gap-3.5 shadow-sm">
+            <div className="p-4.5 rounded-2xl bg-[#3D5F30] border border-brand-yellow/10 text-white flex items-center gap-3.5 shadow-sm">
               <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                <Network className="w-4 h-4 text-brand-yellow" />
+                <Network className="w-4 h-4 text-brand-lime" />
               </div>
               <div className="text-left overflow-hidden">
                 <h3 className="font-extrabold text-[12px] leading-snug truncate">
                   {mapData?.title}
                 </h3>
-                <span className="text-[8px] font-black text-brand-yellow/80 uppercase tracking-wider block mt-0.5">
+                <span className="text-[8px] font-black text-brand-lime/80 uppercase tracking-widest block mt-0.5">
                   Knowledge Tree
                 </span>
               </div>
@@ -310,7 +323,7 @@ export default function BraudleMap({
                     setSelectedConcept(null);
                     setMobileStep('concepts');
                   }}
-                  className="w-full p-4.5 rounded-2xl text-left border bg-white border-zinc-200/80 text-brand-forest flex items-center justify-between active:scale-[0.98] transition-all shadow-3xs"
+                  className="w-full p-4.5 rounded-2xl text-left border bg-white border-zinc-200/85 text-brand-forest flex items-center justify-between active:scale-[0.98] transition-all shadow-3xs"
                 >
                   <h4 className="font-extrabold text-[11px] leading-snug pr-3 line-clamp-2">
                     {chapter.title}
@@ -352,7 +365,7 @@ export default function BraudleMap({
                       className={`w-full p-4 rounded-2xl text-left border transition-all duration-300 active:scale-[0.98] flex flex-col relative overflow-hidden shadow-3xs ${
                         isConceptSelected
                           ? 'bg-gradient-to-br from-white to-[#FCFDF9] border-brand-green text-brand-forest shadow-xs'
-                          : 'bg-white border-zinc-200/80 text-brand-forest hover:bg-white'
+                          : 'bg-white border-zinc-200/85 text-brand-forest hover:bg-white'
                       }`}
                     >
                       {isConceptSelected && (
@@ -375,29 +388,29 @@ export default function BraudleMap({
         )}
       </div>
 
-      {/* DESKTOP-ONLY COLUMNS ROW LAYOUT */}
-      <div className="hidden md:flex justify-between items-start gap-8 px-6 py-6 h-full min-h-0 z-10">
+      {/* DESKTOP-ONLY COLUMNS ROW LAYOUT (3 columns: Root -> Chapters -> Concepts) */}
+      <div className="hidden md:flex justify-between items-start gap-8 px-6 py-6 h-full min-h-0 z-10 w-full">
         
         {/* Column 1: Root Node (Subject) */}
         <div className="flex-shrink-0 pt-16">
           <div 
             ref={rootRef}
-            className="w-40 p-4 rounded-2xl bg-[#3D5F30] border border-brand-yellow/15 text-white shadow-md text-left space-y-1.5"
+            className="w-40 p-4 rounded-2xl bg-[#3D5F30] border border-brand-yellow/10 text-white shadow-md text-left space-y-1.5"
           >
             <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
-              <Network className="w-3.5 h-3.5 text-brand-yellow" />
+              <Network className="w-3.5 h-3.5 text-brand-lime" />
             </div>
             <h3 className="font-extrabold text-[12px] leading-snug truncate" title={mapData?.title}>
               {mapData?.title}
             </h3>
-            <span className="text-[9px] font-black text-brand-yellow uppercase tracking-wider block">
+            <span className="text-[8px] font-black text-brand-lime uppercase tracking-widest block">
               Workspace Source
             </span>
           </div>
         </div>
 
         {/* Column 2: Chapters List */}
-        <div className="w-48 flex flex-col gap-2.5 max-h-full overflow-y-auto pr-1 shrink-0 pt-4">
+        <div className="w-52 flex flex-col gap-2.5 max-h-full overflow-y-auto pr-1 shrink-0 pt-4">
           <span className="text-[9px] font-black text-brand-forest/40 uppercase tracking-widest block mb-1">
             Chapters / Topics
           </span>
@@ -415,15 +428,15 @@ export default function BraudleMap({
                 }}
                 className={`w-full p-3.5 rounded-2xl text-left border transition-all duration-300 relative group active:scale-[0.98] shadow-3xs ${
                   isSelected
-                    ? 'bg-gradient-to-br from-white to-[#F0F2EB] border-[#A5D07F] text-brand-forest shadow-xs'
-                    : 'bg-white/80 backdrop-blur-xs border-gray-200/60 text-brand-forest/80 hover:bg-white hover:border-gray-300'
+                    ? 'bg-gradient-to-br from-white to-[#F0F2EB] border-[#3D5F30] text-brand-forest shadow-xs'
+                    : 'bg-white/90 border-zinc-200/60 text-brand-forest/80 hover:bg-white hover:border-zinc-300'
                 }`}
               >
                 <h4 className="font-extrabold text-[11px] leading-snug line-clamp-2">
                   {chapter.title}
                 </h4>
                 {isSelected && (
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center">
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#3D5F30]/10 text-[#3D5F30] flex items-center justify-center">
                     <ChevronRight className="w-3.5 h-3.5" />
                   </div>
                 )}
@@ -432,7 +445,7 @@ export default function BraudleMap({
           })}
         </div>
 
-        {/* Column 3: Concepts List */}
+        {/* Column 3: Concepts List for the selected chapter */}
         <div className="flex-1 flex flex-col gap-2.5 max-h-full overflow-y-auto pr-1 pt-4">
           {selectedChapter ? (
             <>
@@ -451,27 +464,27 @@ export default function BraudleMap({
                       onClick={() => {
                         setSelectedConcept(concept);
                       }}
-                      className={`p-4 rounded-2xl text-left border transition-all duration-300 active:scale-[0.98] shadow-3xs flex flex-col justify-between min-h-[95px] relative overflow-hidden ${
+                      className={`p-4 rounded-2xl text-left border transition-all duration-300 active:scale-[0.98] shadow-3xs flex flex-col justify-between min-h-[105px] relative overflow-hidden ${
                         isConceptSelected
-                          ? 'bg-gradient-to-br from-white to-[#FCFDF9] border-brand-green text-brand-forest shadow-xs'
-                          : 'bg-white/80 backdrop-blur-xs border-gray-200/60 text-brand-forest hover:bg-white hover:border-gray-300'
+                          ? 'bg-gradient-to-br from-white to-[#FCFDF9] border-[#3D5F30] text-brand-forest shadow-xs'
+                          : 'bg-white/90 border-zinc-200/60 text-brand-forest hover:bg-white hover:border-zinc-300'
                       }`}
                     >
                       {isConceptSelected && (
-                        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand-green" />
+                        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#3D5F30]" />
                       )}
                       
-                      <div className="space-y-1">
-                        <h4 className="font-extrabold text-[11.5px] leading-snug line-clamp-1">
+                      <div className="space-y-1 text-left">
+                        <h4 className="font-extrabold text-[12px] text-brand-forest leading-snug line-clamp-1">
                           {concept.name}
                         </h4>
-                        <p className="text-[9.5px] text-gray-400 font-medium leading-normal line-clamp-2">
+                        <p className="text-[10px] text-gray-400 font-semibold leading-relaxed line-clamp-2">
                           {concept.explanation}
                         </p>
                       </div>
                       
-                      <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-gray-100 w-full justify-between">
-                        <span className="text-[8.5px] font-black text-[#8BA476] bg-brand-green/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-gray-100/60 w-full justify-between select-none">
+                        <span className="text-[8px] font-black text-[#8BA476] bg-[#3D5F30]/5 px-2 py-0.5 rounded-md uppercase tracking-wider">
                           Ready
                         </span>
                         <ChevronRight className={`w-3.5 h-3.5 text-zinc-400 transition-all ${isConceptSelected ? 'text-brand-green translate-x-0.5' : ''}`} />
@@ -489,17 +502,17 @@ export default function BraudleMap({
         </div>
       </div>
 
-      {/* Interactive Actions Drawer Overlay */}
+      {/* BOTTOM ACTION DRAWER OVERLAY */}
       {selectedConcept && (
-        <div className="absolute bottom-4 left-4 right-4 md:left-6 md:right-6 p-4 md:p-5 bg-white/95 backdrop-blur-md border border-zinc-200 rounded-3xl shadow-lg z-20 animate-in slide-in-from-bottom-4 duration-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1 text-left max-w-xl">
+        <div className="absolute bottom-4 left-4 right-4 md:left-6 md:right-6 p-4 md:p-5 bg-white/95 backdrop-blur-md border border-zinc-250/50 rounded-3xl shadow-lg z-20 animate-in slide-in-from-bottom-4 duration-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1 text-left max-w-xl flex-1">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-brand-green animate-pulse" />
-              <h4 className="font-extrabold text-[12px] md:text-[12.5px] text-brand-forest">
+              <h4 className="font-black text-[12.5px] text-brand-forest">
                 {selectedConcept.name}
               </h4>
             </div>
-            <p className="text-[9.5px] md:text-[10.5px] text-gray-400 font-semibold leading-relaxed">
+            <p className="text-[10px] md:text-[11px] text-gray-400 font-semibold leading-relaxed">
               {selectedConcept.explanation}
             </p>
           </div>
@@ -507,25 +520,127 @@ export default function BraudleMap({
           <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
             <button
               onClick={() => onAskTutor(selectedConcept.name)}
-              className="flex-1 md:flex-initial px-3 py-2.5 bg-[#4A783A] text-white hover:bg-[#3D5F30] rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-[#3D5F30] hover:bg-[#1A2C18] text-white rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-brand-yellow" />
-              <span>Ask Tutor</span>
+              <MessageSquare className="w-3.5 h-3.5 text-brand-lime" />
+              <span>Ask Braudle</span>
             </button>
             <button
               onClick={() => onStudyFlashcards(selectedConcept.name)}
-              className="flex-1 md:flex-initial px-3 py-2.5 bg-rose-50 hover:bg-rose-100/60 border border-rose-200 text-rose-700 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-rose-50 hover:bg-rose-100/60 border border-rose-200 text-rose-700 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Flashcards</span>
             </button>
             <button
-              onClick={() => onGenerateQuiz(selectedConcept.name)}
-              className="flex-1 md:flex-initial px-3 py-2.5 bg-blue-50 hover:bg-blue-100/60 border border-blue-200 text-blue-700 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
+              onClick={() => setShowQuizModal(true)}
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-blue-50 hover:bg-blue-100/60 border border-blue-200 text-blue-700 rounded-xl text-[10px] font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-3xs"
             >
               <FileQuestion className="w-3.5 h-3.5" />
               <span>Quiz</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* QUIZ OPTIONS OVERLAY MODAL */}
+      {showQuizModal && selectedConcept && (
+        <div className="absolute inset-0 bg-brand-forest/20 backdrop-blur-xs flex items-center justify-center p-4 z-30 animate-in fade-in duration-200">
+          <div className="bg-white border border-zinc-250/60 rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-6 animate-in zoom-in-95 duration-200 text-left">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                  <Sliders className="w-4 h-4" />
+                </div>
+                <h4 className="font-extrabold text-xs text-brand-forest uppercase tracking-wider">
+                  Quiz Configuration
+                </h4>
+              </div>
+              <button 
+                onClick={() => setShowQuizModal(false)}
+                className="p-1 text-gray-400 hover:text-brand-forest rounded-lg hover:bg-gray-50 transition-all cursor-pointer"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+
+            {/* Options container */}
+            <div className="space-y-4">
+              {/* Question Count Selection */}
+              <div className="space-y-2">
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">
+                  How many questions?
+                </span>
+                <div className="grid grid-cols-4 gap-2">
+                  {[3, 5, 10, 15].map((count) => {
+                    const isSel = quizQuestionsCount === count;
+                    return (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setQuizQuestionsCount(count)}
+                        className={`py-2 text-[10px] font-black rounded-xl border transition-all cursor-pointer ${
+                          isSel 
+                            ? 'bg-[#3D5F30] border-[#3D5F30] text-white' 
+                            : 'bg-white border-zinc-200 text-brand-forest hover:bg-gray-50'
+                        }`}
+                      >
+                        {count} Qs
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Difficulty Selection */}
+              <div className="space-y-2">
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">
+                  Difficulty Level
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: 'easy', label: 'Easy' },
+                    { key: 'medium', label: 'Medium' },
+                    { key: 'hard', label: 'Hard' }
+                  ].map((diff) => {
+                    const isSel = quizDifficulty === diff.key;
+                    return (
+                      <button
+                        key={diff.key}
+                        type="button"
+                        onClick={() => setQuizDifficulty(diff.key)}
+                        className={`py-2 text-[10px] font-black rounded-xl border transition-all cursor-pointer ${
+                          isSel 
+                            ? 'bg-[#3D5F30] border-[#3D5F30] text-white' 
+                            : 'bg-white border-zinc-200 text-brand-forest hover:bg-gray-50'
+                        }`}
+                      >
+                        {diff.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowQuizModal(false)}
+                className="flex-1 py-2.5 border border-zinc-200 text-zinc-500 rounded-xl text-[10px] font-black hover:bg-gray-50 active:scale-[0.98] transition-all cursor-pointer text-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleStartQuiz}
+                className="flex-1 py-2.5 bg-[#3D5F30] hover:bg-[#1A2C18] text-white rounded-xl text-[10px] font-black active:scale-[0.98] transition-all cursor-pointer text-center"
+              >
+                Generate Quiz
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -48,7 +48,7 @@ export default function NameOnboardingPage() {
           <div className="w-12 h-12 bg-[#4A783A] rounded-xl flex items-center justify-center mx-auto mb-6 shadow-sm">
             <div className="w-6 h-6 bg-[#C2E1A6] rounded-md rotate-45" />
           </div>
-          <h1 className="text-3xl font-serif font-medium tracking-tight">
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-forest">
             What should we call you?
           </h1>
           <p className="text-[#6B7280] text-[15px]">

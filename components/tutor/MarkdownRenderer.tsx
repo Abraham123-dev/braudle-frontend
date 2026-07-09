@@ -382,12 +382,57 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             );
           }
 
-          case 'blockquote':
+          case 'blockquote': {
+            const rawText = block.text.trim();
+            let calloutType: 'key' | 'tip' | 'analogy' | 'warning' | null = null;
+            let displayHeader = '';
+            let contentText = rawText;
+            let themeClass = '';
+
+            if (rawText.startsWith('[!KEY]')) {
+              calloutType = 'key';
+              displayHeader = '🔑 Key Takeaway';
+              contentText = rawText.slice(6).trim();
+              themeClass = 'border-[#3D5F30] bg-[#3D5F30]/5 text-[#3D5F30]';
+            } else if (rawText.startsWith('[!TIP]')) {
+              calloutType = 'tip';
+              displayHeader = '💡 Study Tip';
+              contentText = rawText.slice(6).trim();
+              themeClass = 'border-amber-500 bg-amber-500/[0.03] text-amber-700';
+            } else if (rawText.startsWith('[!ANALOGY]')) {
+              calloutType = 'analogy';
+              displayHeader = '🧠 Analogy';
+              contentText = rawText.slice(10).trim();
+              themeClass = 'border-brand-green/45 bg-[#F6F7F2]/60 text-brand-forest';
+            } else if (rawText.startsWith('[!WARNING]')) {
+              calloutType = 'warning';
+              displayHeader = '⚠️ Watch Out';
+              contentText = rawText.slice(10).trim();
+              themeClass = 'border-rose-500 bg-rose-500/[0.02] text-rose-700';
+            }
+
+            if (calloutType) {
+              return (
+                <div 
+                  key={idx} 
+                  className={`border-l-4 pl-4 pr-3 py-3 rounded-r-2xl my-4 text-[15px] sm:text-[16px] leading-relaxed shadow-3xs ${themeClass}`}
+                >
+                  <div className="font-extrabold text-xs uppercase tracking-wider mb-1 select-none flex items-center gap-1.5">
+                    {displayHeader}
+                  </div>
+                  <div className="text-brand-forest/90 font-normal">
+                    {renderInlineContent(contentText)}
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <blockquote key={idx} className="border-l-4 border-brand-green bg-brand-green/5 pl-4 pr-3 py-3 rounded-r-2xl italic my-4 text-brand-forest/90 text-[15px] sm:text-[16px] leading-relaxed">
                 {renderInlineContent(block.text)}
               </blockquote>
             );
+          }
 
           case 'code-block':
             return (

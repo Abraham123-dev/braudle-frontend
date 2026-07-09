@@ -10,8 +10,7 @@ import { auth } from '@/lib/auth';
 import Header from '@/components/dashboard/Header';
 import { 
   ArrowLeft, Flame, Zap, BarChart3, BookOpen, Trophy, 
-  Compass, Award, Book, Save, Shield, User, Sparkles,
-  MessageSquare, FileText, Check, AlertCircle
+  Compass, Save, Shield, User, AlertCircle
 } from 'lucide-react';
 
 interface ProfileData {
@@ -127,17 +126,7 @@ export default function SettingsPage() {
       .toUpperCase();
   };
 
-  const levels = [
-    { id: 'beginner', title: 'Beginner', desc: 'Simple layman breakdowns', icon: Compass },
-    { id: 'intermediate', title: 'Intermediate', desc: 'Standard academic depth', icon: BookOpen },
-    { id: 'advanced', title: 'Advanced', desc: 'Deep technical formulas', icon: Trophy }
-  ];
 
-  const styles = [
-    { id: 'interactive explanation', title: 'Interactive', desc: 'Guided interactive dialogue', icon: Sparkles },
-    { id: 'question driven', title: 'Socratic', desc: 'Tutor Q&A discussion style', icon: MessageSquare },
-    { id: 'summary first', title: 'Structured', desc: 'Outline and summary first', icon: FileText }
-  ];
 
   return (
     <ProtectedRoute>
@@ -245,95 +234,7 @@ export default function SettingsPage() {
                     />
                   </div>
 
-                  {/* Custom interactive Tutor Level selector grid */}
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60 flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-brand-green" />
-                      Tutoring Depth Level
-                    </label>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {levels.map((item) => {
-                        const isSelected = level === item.id;
-                        const Icon = item.icon;
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => setLevel(item.id)}
-                            className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col text-left space-y-2 select-none ${
-                              isSelected 
-                                ? 'border-brand-green bg-brand-green/[0.02] shadow-3xs' 
-                                : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 bg-white'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className={`p-2 rounded-xl ${isSelected ? 'bg-brand-green/10 text-brand-green' : 'bg-zinc-100 text-zinc-500'}`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              {isSelected && (
-                                <div className="w-4 h-4 rounded-full bg-brand-green text-white flex items-center justify-center">
-                                  <Check className="w-2.5 h-2.5 stroke-[3px]" />
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <span className="font-bold text-xs text-brand-forest block">
-                                {item.title}
-                              </span>
-                              <span className="text-[10px] text-zinc-400 block mt-0.5 leading-snug">
-                                {item.desc}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Custom interactive Learning Style selector grid */}
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60 flex items-center gap-1.5">
-                      <Book className="w-3.5 h-3.5 text-brand-green" />
-                      Preferred Learning Mode style
-                    </label>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {styles.map((item) => {
-                        const isSelected = learningStyle === item.id;
-                        const Icon = item.icon;
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => setLearningStyle(item.id)}
-                            className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col text-left space-y-2 select-none ${
-                              isSelected 
-                                ? 'border-brand-green bg-brand-green/[0.02] shadow-3xs' 
-                                : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 bg-white'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className={`p-2 rounded-xl ${isSelected ? 'bg-brand-green/10 text-brand-green' : 'bg-zinc-100 text-zinc-500'}`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              {isSelected && (
-                                <div className="w-4 h-4 rounded-full bg-brand-green text-white flex items-center justify-center">
-                                  <Check className="w-2.5 h-2.5 stroke-[3px]" />
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <span className="font-bold text-xs text-brand-forest block">
-                                {item.title}
-                              </span>
-                              <span className="text-[10px] text-zinc-400 block mt-0.5 leading-snug">
-                                {item.desc}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
 
                   <div className="pt-4 border-t border-zinc-100 flex justify-end">
                     <button

@@ -91,6 +91,13 @@ export interface Question {
   isCorrect?: boolean;
   feedback?: string;
   topic?: string;
+  sourceSection?: number;
+}
+
+export interface WeakTopic {
+  topic: string;
+  accuracy: number;
+  sourceSection?: number;
 }
 
 export interface Quiz {
@@ -101,6 +108,9 @@ export interface Quiz {
   questions: Question[];
   score?: number;
   isExam?: boolean;
+  timeLimit?: number;
+  revealStyle?: 'instant' | 'end';
+  difficulty?: string;
 }
 
 export function useSession(sessionId: string) {
@@ -133,6 +143,7 @@ export function useSession(sessionId: string) {
   const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [quizResult, setQuizResult] = useState<any>(null);
+  const [quizWeakTopics, setQuizWeakTopics] = useState<WeakTopic[]>([]);
   const [showRightPane, setShowRightPane] = useState(false);
   const [sessionQuizzes, setSessionQuizzes] = useState<any[]>([]);
 
@@ -423,11 +434,20 @@ export function useSession(sessionId: string) {
     }
   };
 
-  const handleGenerateQuiz = async (format?: string, numQuestions?: number, instructions?: string, isExam?: boolean) => {
+  const handleGenerateQuiz = async (
+    format?: string,
+    numQuestions?: number,
+    instructions?: string,
+    isExam?: boolean,
+    difficulty?: string,
+    timeLimit?: number,
+    revealStyle?: 'instant' | 'end'
+  ) => {
     setLoadingQuiz(true);
     setQuizResult(null);
     setQuiz(null);
     setSelectedAnswers({});
+    setQuizWeakTopics([]);
     setShowRightPane(true);
 
     try {
@@ -439,8 +459,10 @@ export function useSession(sessionId: string) {
           format,
           numQuestions: numQuestions || 15,
           instructions,
-          difficulty: 'medium',
-          isExam: !!isExam
+          difficulty: difficulty || 'medium',
+          isExam: !!isExam,
+          timeLimit: timeLimit || 0,
+          revealStyle: revealStyle || 'instant',
         });
       } else {
         response = await api.post<any>('/quiz/generate', { sessionId });
@@ -479,6 +501,9 @@ export function useSession(sessionId: string) {
         answers: answersList
       });
       setQuizResult(result);
+      if (result.weakTopics) {
+        setQuizWeakTopics(result.weakTopics);
+      }
       setMessages(prev => [
         ...prev, 
         { role: 'system', content: `Practice test completed! Scored ${result.score}%. View detailed answers in the sidebar.` }
@@ -566,6 +591,11 @@ export function useSession(sessionId: string) {
         };
       });
 
+      // Update weak topics in real-time (instant reveal mode)
+      if (response.weakTopics) {
+        setQuizWeakTopics(response.weakTopics);
+      }
+
       // Reload history list
       await fetchSessionQuizzes();
       
@@ -603,6 +633,7 @@ export function useSession(sessionId: string) {
     submittingQuiz,
     quizResult,
     setQuizResult,
+    quizWeakTopics,
     showRightPane,
     setShowRightPane,
     handleSendMessage,
