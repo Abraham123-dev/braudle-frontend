@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, FileQuestion, Loader2, Clock, BookOpen, RotateCcw, MessageCircle } from 'lucide-react';
+import { AlertCircle, FileQuestion, Loader2, Clock, BookOpen, RotateCcw, MessageCircle, X } from 'lucide-react';
 import { Quiz, Question, WeakTopic } from '@/hooks/useSession';
 import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
 import { useStore } from '@/lib/store';
@@ -125,6 +125,10 @@ export default function PracticePanel({
   const [revealStyle, setRevealStyle] = useState<'instant' | 'end'>('instant');
   const [examCountType, setExamCountType] = useState<'10' | '20' | '30' | 'custom'>('10');
   const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
+
+  useEffect(() => {
+    setLimitError(null);
+  }, [format, difficulty, numQuestions, instructions, isTimed, timeLimitMinutes, revealStyle, examCountType, isExam]);
 
   /* ── Timer ── */
   const [timeLeft, setTimeLeft] = useState<number>(0);
@@ -847,8 +851,16 @@ export default function PracticePanel({
 
           {/* ── CTA ── */}
           {limitError ? (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-[20px] space-y-3">
-              <div className="flex gap-2 text-red-700 text-sm font-semibold">
+            <div className="p-4 bg-red-50 border border-red-100 rounded-[20px] space-y-3 relative">
+              <button 
+                type="button"
+                onClick={() => setLimitError(null)}
+                className="absolute top-3.5 right-3.5 p-1 text-red-400 hover:text-red-700 rounded-lg hover:bg-red-100/40 transition-all cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex gap-2 text-red-700 text-sm font-semibold pr-6">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 Daily limit reached
               </div>

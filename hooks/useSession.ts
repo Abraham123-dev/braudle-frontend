@@ -129,6 +129,7 @@ export function useSession(sessionId: string) {
   const [docTitle, setDocTitle] = useState('Study Source');
   const [topics, setTopics] = useState<string[]>([]);
   const [docSummary, setDocSummary] = useState('');
+  const [knowledgeCacheStatus, setKnowledgeCacheStatus] = useState<string>('pending');
   
   // Chat history & streams
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -205,6 +206,9 @@ export function useSession(sessionId: string) {
           const docId = doc._id || doc;
           setDocumentId(docId);
           fetchDueCount(docId);
+          if (doc.knowledgeCacheStatus) {
+            setKnowledgeCacheStatus(doc.knowledgeCacheStatus);
+          }
         }
         
         // Check if document is still processing
@@ -252,54 +256,94 @@ export function useSession(sessionId: string) {
 
   useEffect(() => {
     if (!sessionId) return;
-
     loadSessionData();
+  }, [sessionId]);
 
-    const timer = setInterval(async () => {
-      if (isProcessingDoc) {
+  useEffect(() => {
+    const shouldSubscribe = isProcessingDoc || (documentId && ['pending', 'processing'].includes(knowledgeCacheStatus));
+    if (!shouldSubscribe || !documentId) return;
+
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const eventSource = new EventSource(`${apiBaseUrl}/documents/${documentId}/progress`, {
+      withCredentials: true,
+    });
+
+    eventSource.onmessage = (event) => {
+      if (event.data === '[DONE]') {
+        eventSource.close();
+        setIsProcessingDoc(false);
+        loadSessionData();
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(event.data);
+        if (parsed.error) {
+          eventSource.close();
+          setError(parsed.error);
+          return;
+        }
+
+        const { status, stage, knowledgeCacheStatus: cacheStatus } = parsed;
+
+        const isExtractionDone = status === 'ready' || parsed.stage === 'ready';
+        const isCacheDone = status === 'ready_cache' || status === 'failed_cache' || parsed.stage === 'ready_cache' || parsed.stage === 'failed_cache';
+
+        if (isExtractionDone) {
+          setIsProcessingDoc(false);
+        }
+
+        if (isCacheDone || status === 'ready_cache') {
+          setKnowledgeCacheStatus('ready');
+        } else if (status === 'failed_cache') {
+          setKnowledgeCacheStatus('failed');
+        } else if (status === 'processing_cache' || parsed.status === 'processing_cache') {
+          setKnowledgeCacheStatus('processing');
+        }
+
+        if (status === 'ready' || status === 'ready_cache' || status === 'failed_cache') {
+          loadSessionData();
+        } else {
+          if (stage) setProcessingStage(stage);
+          if (cacheStatus) setKnowledgeCacheStatus(cacheStatus);
+        }
+      } catch (e) {
+        // Ignore parse errors on heartbeats/arbitrary text
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      
+      // Connection lost fallback check after 5s
+      const timer = setTimeout(async () => {
         try {
           const res = await api.get<any>(`/sessions/${sessionId}`);
           if (res.session && res.session.documentId) {
             const status = res.session.documentId.processingStatus;
             const stage = res.session.documentId.processingStage;
-            setProcessingStage(stage || 'Analyzing...');
+            const cacheStatus = res.session.documentId.knowledgeCacheStatus;
+
             if (status === 'ready') {
               setIsProcessingDoc(false);
-              // Reload fully once document is ready
-              const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
-              const historyMsgs = (sessionRes.messages || []).map(parseMessageTags);
-              setMessages(historyMsgs);
-              
-              const welcomeRes = await api.get<any>(`/sessions/${sessionId}/welcome`);
-              if (welcomeRes.welcome) {
-                setDocTitle(welcomeRes.welcome.documentTitle || 'Study Source');
-                setTopics(welcomeRes.welcome.topics || []);
-                setDocSummary(welcomeRes.welcome.summary || '');
-                
-                const welcomeMsg = welcomeRes.welcome.message;
-                if (welcomeMsg && historyMsgs.length === 0) {
-                  const welcomeMsgObj = parseMessageTags({
-                    role: 'assistant' as const,
-                    content: welcomeMsg,
-                    timestamp: new Date().toISOString()
-                  });
-                  setMessages([welcomeMsgObj]);
-                } else {
-                  setMessages(historyMsgs);
-                }
-              } else {
-                setMessages(historyMsgs);
-              }
+              loadSessionData();
+            } else if (status === 'failed') {
+              setError('Document analysis failed. Please verify the content and try again.');
+            } else {
+              if (stage) setProcessingStage(stage);
+              if (cacheStatus) setKnowledgeCacheStatus(cacheStatus);
             }
           }
-        } catch (e) {
-          console.error('Error polling status:', e);
-        }
-      }
-    }, 2000);
+        } catch {}
+      }, 5000);
 
-    return () => clearInterval(timer);
-  }, [sessionId, isProcessingDoc]);
+      return () => clearTimeout(timer);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [isProcessingDoc, documentId, sessionId, knowledgeCacheStatus]);
 
   const triggerTutorStream = async (messageText: string) => {
     if (isStreamingRef.current) return;
@@ -618,6 +662,7 @@ export function useSession(sessionId: string) {
     docTitle,
     topics,
     docSummary,
+    knowledgeCacheStatus,
     messages,
     input,
     setInput,

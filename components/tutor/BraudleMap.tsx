@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { 
   Sparkles, 
   ChevronRight, 
-  ChevronLeft,
   BookOpen, 
   FileQuestion, 
   MessageSquare,
@@ -33,14 +32,6 @@ interface ConceptMapData {
   chapters: Chapter[];
 }
 
-interface SVGPath {
-  id: string;
-  type: 'root-chapter' | 'chapter-concept';
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-  active: boolean;
-}
-
 interface BraudleMapProps {
   documentId: string;
   onAskTutor: (conceptName: string) => void;
@@ -59,19 +50,14 @@ export default function BraudleMap({
   const [mapData, setMapData] = useState<ConceptMapData | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
-  const [mobileStep, setMobileStep] = useState<'chapters' | 'concepts'>('chapters');
 
   // Local Quiz configuration state
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [quizQuestionsCount, setQuizQuestionsCount] = useState<number>(5);
   const [quizDifficulty, setQuizDifficulty] = useState<string>('medium');
 
-  // Layout refs
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const chapterRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const conceptRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const [paths, setPaths] = useState<SVGPath[]>([]);
+  // Scrolling container ref
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch map data
   const fetchConceptMap = async () => {
@@ -100,82 +86,17 @@ export default function BraudleMap({
     fetchConceptMap();
   }, [documentId]);
 
-  // Recalculate connection lines coordinates (desktop only)
-  const updateLayout = () => {
-    if (!containerRef.current || !rootRef.current || !mapData || window.innerWidth < 768) return;
-    const containerRect = containerRef.current.getBoundingClientRect();
-
-    const getCoords = (el: HTMLElement, edge: 'left' | 'right') => {
-      const rect = el.getBoundingClientRect();
-      const x = rect.left - containerRect.left + (edge === 'right' ? rect.width : 0);
-      const y = rect.top - containerRect.top + rect.height / 2;
-      return { x, y };
-    };
-
-    const rootCoords = getCoords(rootRef.current, 'right');
-    const newPaths: SVGPath[] = [];
-
-    const chapters = mapData.chapters || [];
-    chapters.forEach((ch) => {
-      const chEl = chapterRefs.current[ch.id];
-      if (!chEl) return;
-      const chLeft = getCoords(chEl, 'left');
-      const isSelected = ch.id === selectedChapterId;
-
-      newPaths.push({
-        id: `root-to-${ch.id}`,
-        type: 'root-chapter',
-        from: rootCoords,
-        to: chLeft,
-        active: isSelected
+  const scrollToChapter = (chapterId: string) => {
+    setSelectedChapterId(chapterId);
+    const element = document.getElementById(`chapter-${chapterId}`);
+    if (element && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const offsetTop = element.offsetTop - container.offsetTop - 16;
+      container.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
       });
-
-      if (isSelected) {
-        const chRight = getCoords(chEl, 'right');
-        ch.concepts.forEach((concept) => {
-          const conceptEl = conceptRefs.current[concept.id];
-          if (!conceptEl) return;
-          const conceptLeft = getCoords(conceptEl, 'left');
-
-          newPaths.push({
-            id: `${ch.id}-to-${concept.id}`,
-            type: 'chapter-concept',
-            from: chRight,
-            to: conceptLeft,
-            active: true
-          });
-        });
-      }
-    });
-
-    setPaths(newPaths);
-  };
-
-  // Recalculate offsets on layout updates
-  useLayoutEffect(() => {
-    if (mapData) {
-      const timer = setTimeout(updateLayout, 150);
-      window.addEventListener('resize', updateLayout);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('resize', updateLayout);
-      };
     }
-  }, [mapData, selectedChapterId, selectedConcept]);
-
-  const selectedChapter = mapData?.chapters.find(c => c.id === selectedChapterId);
-
-  // Bezier curve path helper
-  const drawBezier = (path: SVGPath) => {
-    const { from, to } = path;
-    const dx = Math.abs(to.x - from.x);
-    const cxOffset = Math.min(dx / 1.7, 100); 
-    const cx1 = from.x + cxOffset;
-    const cy1 = from.y;
-    const cx2 = to.x - cxOffset;
-    const cy2 = to.y;
-
-    return `M ${from.x} ${from.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${to.x} ${to.y}`;
   };
 
   const handleStartQuiz = () => {
@@ -229,290 +150,185 @@ export default function BraudleMap({
 
   return (
     <div 
-      ref={containerRef}
-      className="relative flex flex-col h-full w-full select-none text-left overflow-hidden min-h-0 bg-[#F6F7F2]"
+      className="relative flex flex-col md:flex-row h-full w-full select-none text-left overflow-hidden min-h-0 bg-[#F6F7F2]"
       style={{
         backgroundImage: 'radial-gradient(#E2E6DD 1.5px, transparent 1.5px)',
         backgroundSize: '24px 24px'
       }}
     >
-      {/* SVG Canvas for connection lines (Hidden on mobile) */}
-      <svg className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-0">
-        <defs>
-          <linearGradient id="map-active-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#3D5F30" />
-            <stop offset="100%" stopColor="#8BA476" />
-          </linearGradient>
-        </defs>
-
-        {paths.map((path) => {
-          if (path.active) {
-            return (
-              <g key={path.id}>
-                <path
-                  d={drawBezier(path)}
-                  stroke="url(#map-active-gradient)"
-                  strokeWidth="5"
-                  fill="none"
-                  className="opacity-15 blur-[2px]"
-                />
-                <path
-                  d={drawBezier(path)}
-                  stroke="url(#map-active-gradient)"
-                  strokeWidth="2"
-                  fill="none"
-                  style={{
-                    strokeDasharray: '6 4',
-                    animation: 'map-line-pulse 1s linear infinite'
-                  }}
-                />
-              </g>
-            );
-          } else {
-            return (
-              <path
-                key={path.id}
-                d={drawBezier(path)}
-                stroke="#E2E6DD"
-                strokeWidth="1.5"
-                fill="none"
-                className="opacity-60"
-              />
-            );
-          }
-        })}
-      </svg>
-
-      <style>{`
-        @keyframes map-line-pulse {
-          to {
-            stroke-dashoffset: -20;
-          }
-        }
-      `}</style>
-
-      {/* MOBILE DRILL-DOWN STACK LAYOUT */}
-      <div className="flex md:hidden flex-col h-full w-full p-4 overflow-y-auto z-10 min-h-0">
-        {mobileStep === 'chapters' ? (
-          <div className="space-y-4">
-            {/* Subject Root Card */}
-            <div className="p-4.5 rounded-2xl bg-[#3D5F30] border border-brand-yellow/10 text-white flex items-center gap-3.5 shadow-sm">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                <Network className="w-4 h-4 text-brand-lime" />
-              </div>
-              <div className="text-left overflow-hidden">
-                <h3 className="font-extrabold text-[12px] leading-snug truncate">
-                  {mapData?.title}
-                </h3>
-                <span className="text-[8px] font-black text-brand-lime/80 uppercase tracking-widest block mt-0.5">
-                  Knowledge Tree
-                </span>
-              </div>
-            </div>
-
-            {/* Chapters list */}
-            <div className="space-y-2">
-              <span className="text-[9px] font-black text-brand-forest/40 uppercase tracking-widest block mb-2">
-                Chapters / Study Topics
-              </span>
-              {mapData?.chapters.map((chapter) => (
-                <button
-                  key={chapter.id}
-                  onClick={() => {
-                    setSelectedChapterId(chapter.id);
-                    setSelectedConcept(null);
-                    setMobileStep('concepts');
-                  }}
-                  className="w-full p-4.5 rounded-2xl text-left border bg-white border-zinc-200/85 text-brand-forest flex items-center justify-between active:scale-[0.98] transition-all shadow-3xs"
-                >
-                  <h4 className="font-extrabold text-[11px] leading-snug pr-3 line-clamp-2">
-                    {chapter.title}
-                  </h4>
-                  <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 flex flex-col h-full min-h-0">
-            {/* Navigation back ribbon */}
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-200/50">
-              <button
-                onClick={() => setMobileStep('chapters')}
-                className="flex items-center gap-1 text-[9.5px] font-black text-brand-forest uppercase tracking-wider bg-[#E2E6DD]/50 border border-zinc-200/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer active:scale-95"
-              >
-                <span>← Chapters</span>
-              </button>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate max-w-[200px]" title={selectedChapter?.title}>
-                {selectedChapter?.title.split(':')[0]}
-              </span>
-            </div>
-
-            {/* Concepts list */}
-            {selectedChapter ? (
-              <div className="space-y-2.5 overflow-y-auto flex-1 pb-32">
-                <span className="text-[9px] font-black text-brand-forest/40 uppercase tracking-widest block">
-                  Concepts inside this Chapter
-                </span>
-                {selectedChapter.concepts.map((concept) => {
-                  const isConceptSelected = selectedConcept?.id === concept.id;
-                  return (
-                    <button
-                      key={concept.id}
-                      onClick={() => {
-                        setSelectedConcept(concept);
-                      }}
-                      className={`w-full p-4 rounded-2xl text-left border transition-all duration-300 active:scale-[0.98] flex flex-col relative overflow-hidden shadow-3xs ${
-                        isConceptSelected
-                          ? 'bg-gradient-to-br from-white to-[#FCFDF9] border-brand-green text-brand-forest shadow-xs'
-                          : 'bg-white border-zinc-200/85 text-brand-forest hover:bg-white'
-                      }`}
-                    >
-                      {isConceptSelected && (
-                        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand-green" />
-                      )}
-                      <h4 className="font-extrabold text-[11px] leading-snug">
-                        {concept.name}
-                      </h4>
-                      <p className="text-[9.5px] text-gray-400 font-semibold leading-normal mt-1.5 line-clamp-3">
-                        {concept.explanation}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 font-medium">Chapter not found.</p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* DESKTOP-ONLY COLUMNS ROW LAYOUT (3 columns: Root -> Chapters -> Concepts) */}
-      <div className="hidden md:flex justify-between items-start gap-8 px-6 py-6 h-full min-h-0 z-10 w-full">
-        
-        {/* Column 1: Root Node (Subject) */}
-        <div className="flex-shrink-0 pt-16">
-          <div 
-            ref={rootRef}
-            className="w-40 p-4 rounded-2xl bg-[#3D5F30] border border-brand-yellow/10 text-white shadow-md text-left space-y-1.5"
-          >
-            <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
-              <Network className="w-3.5 h-3.5 text-brand-lime" />
-            </div>
-            <h3 className="font-extrabold text-[12px] leading-snug truncate" title={mapData?.title}>
-              {mapData?.title}
-            </h3>
-            <span className="text-[8px] font-black text-brand-lime uppercase tracking-widest block">
-              Workspace Source
-            </span>
-          </div>
+      {/* CHAPTERS INDEX SIDEBAR (Desktop) */}
+      <div className="hidden md:flex w-64 border-r border-[#E2E6DD]/65 bg-[#FBFBFA]/90 backdrop-blur-xs flex-col max-h-full overflow-y-auto shrink-0 p-5 gap-3.5 z-10">
+        <div className="space-y-1 pb-4 border-b border-zinc-200/40">
+          <span className="text-[8px] font-black text-brand-green uppercase tracking-widest block">
+            Outline Index
+          </span>
+          <h3 className="font-black text-[12px] text-brand-forest leading-snug truncate" title={mapData?.title}>
+            {mapData?.title}
+          </h3>
         </div>
-
-        {/* Column 2: Chapters List */}
-        <div className="w-52 flex flex-col gap-2.5 max-h-full overflow-y-auto pr-1 shrink-0 pt-4">
+        <div className="flex flex-col gap-2">
           <span className="text-[9px] font-black text-brand-forest/40 uppercase tracking-widest block mb-1">
-            Chapters / Topics
+            Chapters & Sections
           </span>
           {mapData?.chapters.map((chapter) => {
             const isSelected = chapter.id === selectedChapterId;
             return (
               <button
                 key={chapter.id}
-                ref={(el) => {
-                  chapterRefs.current[chapter.id] = el;
-                }}
-                onClick={() => {
-                  setSelectedChapterId(chapter.id);
-                  setSelectedConcept(null);
-                }}
-                className={`w-full p-3.5 rounded-2xl text-left border transition-all duration-300 relative group active:scale-[0.98] shadow-3xs ${
+                onClick={() => scrollToChapter(chapter.id)}
+                className={`w-full p-3 rounded-2xl text-left border transition-all duration-300 relative group active:scale-[0.98] shadow-3xs ${
                   isSelected
                     ? 'bg-gradient-to-br from-white to-[#F0F2EB] border-[#3D5F30] text-brand-forest shadow-xs'
-                    : 'bg-white/90 border-zinc-200/60 text-brand-forest/80 hover:bg-white hover:border-zinc-300'
+                    : 'bg-white/85 border-zinc-200/60 text-brand-forest/80 hover:bg-white hover:border-zinc-300'
                 }`}
               >
-                <h4 className="font-extrabold text-[11px] leading-snug line-clamp-2">
+                <h4 className="font-extrabold text-[11px] leading-snug line-clamp-2 pr-3">
                   {chapter.title}
                 </h4>
                 {isSelected && (
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#3D5F30]/10 text-[#3D5F30] flex items-center justify-center">
-                    <ChevronRight className="w-3.5 h-3.5" />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#3D5F30]/10 text-[#3D5F30] flex items-center justify-center">
+                    <ChevronRight className="w-3 h-3" />
                   </div>
                 )}
               </button>
             );
           })}
         </div>
+      </div>
 
-        {/* Column 3: Concepts List for the selected chapter */}
-        <div className="flex-1 flex flex-col gap-2.5 max-h-full overflow-y-auto pr-1 pt-4">
-          {selectedChapter ? (
-            <>
-              <span className="text-[9px] font-black text-brand-forest/40 uppercase tracking-widest block mb-1">
-                Concepts inside {selectedChapter.title.split(':')[0]}
-              </span>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
-                {selectedChapter.concepts.map((concept) => {
-                  const isConceptSelected = selectedConcept?.id === concept.id;
-                  return (
+      {/* MOBILE HORIZONTAL CHAPTERS TAB BAR */}
+      <div className="flex md:hidden w-full items-center gap-2 overflow-x-auto px-4 py-3 bg-[#FBFBFA]/90 border-b border-[#E2E6DD]/60 shrink-0 z-10 scrollbar-none">
+        {mapData?.chapters.map((chapter) => {
+          const isSelected = chapter.id === selectedChapterId;
+          return (
+            <button
+              key={chapter.id}
+              onClick={() => scrollToChapter(chapter.id)}
+              className={`shrink-0 px-3 py-1.5 rounded-xl border text-[10px] font-extrabold transition-all duration-200 active:scale-95 ${
+                isSelected
+                  ? 'bg-[#3D5F30] border-[#3D5F30] text-white shadow-3xs'
+                  : 'bg-white border-zinc-200/60 text-brand-forest/80'
+              }`}
+            >
+              {chapter.title.split(':')[0]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* CENTER TIMELINE ROADMAP CANVAS */}
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-6 py-8 md:px-12 relative scroll-smooth h-full z-0 pb-36"
+      >
+        {mapData?.chapters.map((chapter) => (
+          <div 
+            key={chapter.id} 
+            id={`chapter-${chapter.id}`} 
+            className="mb-10 last:mb-16 scroll-mt-6"
+          >
+            {/* Chapter Header Card */}
+            <div className="flex items-center gap-3 mb-6 bg-white/50 border border-zinc-200/40 rounded-2xl p-3 max-w-fit shadow-3xs backdrop-blur-xs">
+              <div className="px-2.5 py-1 rounded-lg bg-brand-green/10 text-[#3D5F30] text-[9px] font-black uppercase tracking-wider">
+                {chapter.title.split(':')[0]}
+              </div>
+              <h3 className="font-extrabold text-[12px] text-brand-forest">
+                {chapter.title.includes(':') ? chapter.title.split(':').slice(1).join(':').trim() : chapter.title}
+              </h3>
+            </div>
+            
+            {/* Socratic Concept Roadmap (Timeline style) */}
+            <div className="relative pl-9 ml-4 space-y-6">
+              {/* Vertical SVG connection line */}
+              <div className="absolute left-[7px] top-3 bottom-3 w-[2px] pointer-events-none">
+                <svg className="w-full h-full" preserveAspectRatio="none">
+                  <line 
+                    x1="1" y1="0" x2="1" y2="100%" 
+                    stroke="#8BA476" 
+                    strokeWidth="2" 
+                    strokeDasharray="6,4" 
+                    className="opacity-50"
+                  />
+                </svg>
+              </div>
+
+              {chapter.concepts.map((concept) => {
+                const isConceptSelected = selectedConcept?.id === concept.id;
+                return (
+                  <div key={concept.id} className="relative group text-left">
+                    {/* Node Dot Connector */}
+                    <div 
+                      className={`absolute -left-[41px] top-[22px] w-5 h-5 rounded-full border-4 transition-all duration-300 z-10 ${
+                        isConceptSelected 
+                          ? 'border-[#3D5F30]/25 bg-[#3D5F30] scale-110 shadow-sm' 
+                          : 'border-[#F6F7F2] bg-[#8BA476] group-hover:bg-[#3D5F30] group-hover:scale-105'
+                      }`}
+                    />
+
+                    {/* Active SVG Horizontal Connector Line */}
+                    {isConceptSelected && (
+                      <div className="absolute left-[-21px] top-[31px] w-[21px] h-[2px] pointer-events-none hidden sm:block">
+                        <svg className="w-full h-full">
+                          <line 
+                            x1="0" y1="1" x2="100%" y2="1" 
+                            stroke="#3D5F30" 
+                            strokeWidth="2" 
+                            strokeDasharray="4,2" 
+                            className="animate-pulse"
+                          />
+                        </svg>
+                      </div>
+                    )}
+
+                    {/* Roadmap Concept Node Card */}
                     <button
-                      key={concept.id}
-                      ref={(el) => {
-                        conceptRefs.current[concept.id] = el;
-                      }}
-                      onClick={() => {
-                        setSelectedConcept(concept);
-                      }}
-                      className={`p-4 rounded-2xl text-left border transition-all duration-300 active:scale-[0.98] shadow-3xs flex flex-col justify-between min-h-[105px] relative overflow-hidden ${
+                      type="button"
+                      onClick={() => setSelectedConcept(concept)}
+                      className={`w-full max-w-2xl p-4 rounded-2xl border text-left transition-all duration-300 active:scale-[0.99] flex flex-col justify-between relative overflow-hidden shadow-3xs group-hover:shadow-2xs ${
                         isConceptSelected
                           ? 'bg-gradient-to-br from-white to-[#FCFDF9] border-[#3D5F30] text-brand-forest shadow-xs'
-                          : 'bg-white/90 border-zinc-200/60 text-brand-forest hover:bg-white hover:border-zinc-300'
+                          : 'bg-white border-zinc-200/60 text-brand-forest hover:bg-white hover:border-zinc-300'
                       }`}
                     >
                       {isConceptSelected && (
-                        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#3D5F30]" />
+                        <div className="absolute left-0 top-0 bottom-0 w-[3.5px] bg-[#3D5F30]" />
                       )}
                       
-                      <div className="space-y-1 text-left">
-                        <h4 className="font-extrabold text-[12px] text-brand-forest leading-snug line-clamp-1">
+                      <div className="space-y-1">
+                        <h4 className="font-extrabold text-[12px] text-brand-forest leading-snug line-clamp-1 transition-colors duration-200 group-hover:text-[#3D5F30]">
                           {concept.name}
                         </h4>
                         <p className="text-[10px] text-gray-400 font-semibold leading-relaxed line-clamp-2">
                           {concept.explanation}
                         </p>
                       </div>
-                      
+
                       <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-gray-100/60 w-full justify-between select-none">
                         <span className="text-[8px] font-black text-[#8BA476] bg-[#3D5F30]/5 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                          Ready
+                          Concept Node
                         </span>
                         <ChevronRight className={`w-3.5 h-3.5 text-zinc-400 transition-all ${isConceptSelected ? 'text-brand-green translate-x-0.5' : ''}`} />
                       </div>
                     </button>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 border border-dashed border-gray-200/80 rounded-2xl flex items-center justify-center p-8 text-center text-gray-400">
-              <p className="text-[10px] max-w-[200px]">Select a chapter to explore its internal learning path.</p>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        ))}
       </div>
 
-      {/* BOTTOM ACTION DRAWER OVERLAY */}
+      {/* BOTTOM CONCEPT DETAIL DRAWER OVERLAY */}
       {selectedConcept && (
-        <div className="absolute bottom-4 left-4 right-4 md:left-6 md:right-6 p-4 md:p-5 bg-white/95 backdrop-blur-md border border-zinc-250/50 rounded-3xl shadow-lg z-20 animate-in slide-in-from-bottom-4 duration-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1 text-left max-w-xl flex-1">
+        <div className="absolute bottom-4 left-4 right-4 md:left-6 md:right-6 p-4.5 md:p-5 bg-white/95 backdrop-blur-md border border-zinc-200/80 rounded-3xl shadow-lg z-20 animate-in slide-in-from-bottom-4 duration-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1.5 text-left max-w-xl flex-1">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-brand-green animate-pulse" />
               <h4 className="font-black text-[12.5px] text-brand-forest">
                 {selectedConcept.name}
               </h4>
             </div>
-            <p className="text-[10px] md:text-[11px] text-gray-400 font-semibold leading-relaxed">
+            <p className="text-[10.5px] md:text-[11px] text-gray-400 font-semibold leading-relaxed">
               {selectedConcept.explanation}
             </p>
           </div>

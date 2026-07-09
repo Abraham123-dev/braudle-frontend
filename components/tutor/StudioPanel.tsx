@@ -36,6 +36,7 @@ interface StudioPanelProps {
   setQuiz: React.Dispatch<React.SetStateAction<any>>;
   setQuizResult: React.Dispatch<React.SetStateAction<any>>;
   dueCount?: number;
+  knowledgeCacheStatus?: string;
 }
 
 export default function StudioPanel({
@@ -55,7 +56,8 @@ export default function StudioPanel({
   setIsExamSession,
   setQuiz,
   setQuizResult,
-  dueCount
+  dueCount,
+  knowledgeCacheStatus
 }: StudioPanelProps) {
 
   // Time ago helper for styling
@@ -75,6 +77,8 @@ export default function StudioPanel({
     return `${diffDays}d ago`;
   };
 
+  const isCachePending = ['pending', 'processing'].includes(knowledgeCacheStatus || 'pending');
+
   const studioCards = [
     {
       id: 'flashcards',
@@ -85,7 +89,8 @@ export default function StudioPanel({
       onClick: () => {
         setRightPanelTab('flashcards');
       },
-      badge: dueCount && dueCount > 0 ? `${dueCount} due` : undefined
+      badge: dueCount && dueCount > 0 ? `${dueCount} due` : undefined,
+      disabled: isCachePending
     },
     {
       id: 'quiz',
@@ -98,7 +103,8 @@ export default function StudioPanel({
         setRightPanelTab('quiz');
         setQuiz(null);
         setQuizResult(null);
-      }
+      },
+      disabled: isCachePending
     },
     {
       id: 'examprep',
@@ -111,7 +117,8 @@ export default function StudioPanel({
         setRightPanelTab('quiz');
         setQuiz(null);
         setQuizResult(null);
-      }
+      },
+      disabled: isCachePending
     },
     {
       id: 'summary',
@@ -121,7 +128,8 @@ export default function StudioPanel({
       icon: FileText,
       onClick: () => {
         setRightPanelTab('summary');
-      }
+      },
+      disabled: false
     }
   ];
 
@@ -139,7 +147,7 @@ export default function StudioPanel({
             <button
               key={card.id}
               onClick={() => card.onClick?.()}
-              disabled={isProcessingDoc}
+              disabled={isProcessingDoc || card.disabled}
               className={`p-3.5 rounded-2xl border border-transparent ${card.bg} text-left transition-all cursor-pointer group flex flex-col justify-between disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs hover:shadow-xs active:scale-[0.98] w-full min-h-[85px]`}
             >
               <div className="flex items-center justify-between w-full">
@@ -158,9 +166,19 @@ export default function StudioPanel({
                       {card.badge}
                     </span>
                   )}
-                  <div className="w-6 h-6 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-gray-400 group-hover:text-brand-green group-hover:scale-105 transition-all shrink-0 shadow-3xs">
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
+                  {card.disabled && !isProcessingDoc ? (
+                    <span className="text-[9px] font-semibold text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 scale-95 animate-pulse">
+                      <svg className="animate-spin h-2.5 w-2.5 text-zinc-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Preparing...
+                    </span>
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-gray-400 group-hover:text-brand-green group-hover:scale-105 transition-all shrink-0 shadow-3xs">
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  )}
                 </div>
               </div>
               <span className="font-extrabold text-[12px] text-brand-forest leading-tight mt-3.5 truncate block">

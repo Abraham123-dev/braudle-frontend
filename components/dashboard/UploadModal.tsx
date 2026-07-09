@@ -139,19 +139,38 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
 
   const pollIngestionStatus = (docId: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-      const interval = setInterval(async () => {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const eventSource = new EventSource(`${apiBaseUrl}/documents/${docId}/progress`, {
+        withCredentials: true,
+      });
+
+      eventSource.onmessage = (event) => {
+        if (event.data === '[DONE]') {
+          eventSource.close();
+          setUnifiedProgress(100);
+          setUnifiedStageLabel('AI tutor prepared successfully!');
+          resolve();
+          return;
+        }
+
         try {
-          const res = await api.get<any>(`/documents/${docId}/status`);
-          const status = res.processingStatus;
-          const stage = res.processingStage;
-          
+          const parsed = JSON.parse(event.data);
+          if (parsed.error) {
+            eventSource.close();
+            reject(new Error(parsed.error));
+            return;
+          }
+
+          const status = parsed.status;
+          const stage = parsed.stage;
+
           if (status === 'ready') {
-            clearInterval(interval);
+            eventSource.close();
             setUnifiedProgress(100);
             setUnifiedStageLabel('AI tutor prepared successfully!');
             resolve();
           } else if (status === 'failed') {
-            clearInterval(interval);
+            eventSource.close();
             reject(new Error('Document analysis failed. Please verify the content and try again.'));
           } else {
             if (stage) {
@@ -159,11 +178,34 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
               setUnifiedProgress(prev => Math.max(prev, INGESTION_PROGRESS_MAP[stage] || 50));
             }
           }
-        } catch (err) {
-          clearInterval(interval);
-          reject(err);
+        } catch (e) {
+          // Ignore parsing issues for heartbeats
         }
-      }, 2000);
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        
+        // Single REST fallback check to see if document is already ready
+        api.get<any>(`/documents/${docId}/status`)
+          .then((res) => {
+            if (res.processingStatus === 'ready') {
+              setUnifiedProgress(100);
+              setUnifiedStageLabel('AI tutor prepared successfully!');
+              resolve();
+            } else if (res.processingStatus === 'failed') {
+              reject(new Error('Document analysis failed. Please verify the content and try again.'));
+            } else {
+              // Resubscribe after a short delay
+              setTimeout(() => {
+                pollIngestionStatus(docId).then(resolve).catch(reject);
+              }, 2500);
+            }
+          })
+          .catch(() => {
+            reject(new Error('Real-time connection lost with the analysis server.'));
+          });
+      };
     });
   };
 

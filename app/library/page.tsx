@@ -306,7 +306,7 @@ export default function LibraryPage() {
           {/* Tab 1: Notebooks List */}
           {activeTab === 'notebooks' && (
             loadingDocs ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse">
+              <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5 animate-pulse">
                 {Array.from({ length: 4 }).map((_, idx) => (
                   <div key={idx} className="bg-gray-100/50 border border-gray-150 rounded-2xl p-5 aspect-[1.35/1] sm:aspect-[1.4/1] flex flex-col justify-between">
                     <div className="w-9 h-9 rounded-xl bg-gray-200 shrink-0" />
@@ -320,11 +320,24 @@ export default function LibraryPage() {
             ) : (
               <div className="space-y-6">
                 {filteredDocuments.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-                    {/* Create notebook Card */}
+                  <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5">
+                    {/* Create notebook (Mobile) */}
                     <div
                       onClick={() => setIsUploadOpen(true)}
-                      className="border border-dashed border-gray-250 hover:border-brand-green/30 bg-white rounded-2xl flex flex-col items-center justify-center p-5 cursor-pointer hover:bg-gray-50/55 transition-all duration-200 aspect-[1.35/1] sm:aspect-[1.4/1]"
+                      className="flex sm:hidden items-center gap-3.5 w-full p-4 rounded-[16px] border border-dashed border-gray-300 bg-white hover:bg-gray-50/50 cursor-pointer transition-all active:scale-[0.99]"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center shrink-0">
+                        <Plus className="w-4.5 h-4.5" />
+                      </div>
+                      <span className="font-bold text-[13px] text-brand-forest">
+                        Create notebook
+                      </span>
+                    </div>
+
+                    {/* Create notebook (Desktop) */}
+                    <div
+                      onClick={() => setIsUploadOpen(true)}
+                      className="hidden sm:flex border border-dashed border-gray-250 hover:border-brand-green/30 bg-white rounded-2xl flex-col items-center justify-center p-5 cursor-pointer hover:bg-gray-50/55 transition-all duration-200 aspect-[1.35/1] sm:aspect-[1.4/1]"
                     >
                       <div className="w-10 h-10 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center mb-3">
                         <Plus className="w-5 h-5" />

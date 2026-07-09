@@ -187,7 +187,8 @@ export default function SessionPage({ params }: SessionPageProps) {
     lastSentMessage,
     dueCount,
     handleRateConcept,
-    documentId
+    documentId,
+    knowledgeCacheStatus
   } = useSession(sessionId);
 
   const user = useStore((state) => state.user);
@@ -1415,6 +1416,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                        setQuiz={setQuiz}
                        setQuizResult={setQuizResult}
                        dueCount={dueCount}
+                       knowledgeCacheStatus={knowledgeCacheStatus}
                      />
                    )}
 
