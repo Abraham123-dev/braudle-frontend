@@ -46,7 +46,7 @@ export async function fetchWithRefresh(url: string, options?: RequestInit): Prom
 
   const response = await fetch(url, requestOptions);
 
-  if (response.status === 401 && !url.includes('/auth/refresh') && !url.includes('/auth/logout')) {
+  if (response.status === 401 && !url.includes('/auth/refresh') && !url.includes('/auth/logout') && !url.includes('/admin/lighthouse')) {
     const retryPromise = new Promise<Response>((resolve, reject) => {
       subscribeTokenRefresh((success, error) => {
         if (success) {

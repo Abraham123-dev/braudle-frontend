@@ -234,7 +234,8 @@ function HomeLearningContent() {
 
   // Weekly challenge helpers
   const challenge = profile?.weeklyChallenge;
-  const challengeProgress = challenge ? Math.min((challenge.progress / challenge.target) * 100, 100) : 0;
+  const rawProgress = (challenge && challenge.target) ? (challenge.progress / challenge.target) * 100 : 0;
+  const challengeProgress = isNaN(rawProgress) || !isFinite(rawProgress) ? 0 : Math.min(rawProgress, 100);
 
   // Recommendation helpers
   const hasReadyToTest = recommendations?.readyToTest && recommendations.readyToTest.length > 0;
@@ -277,17 +278,157 @@ function HomeLearningContent() {
           {/* ══════════════ MAIN ══════════════ */}
           <main className="flex-1 max-w-6xl w-full mx-auto px-6 md:px-8 py-10 md:py-14 flex flex-col">
 
-            {/* ── SECTION 1: Greeting + Nudge ── */}
-            <div className="mb-8 text-left">
-              <h1 className="text-3xl md:text-5xl font-medium tracking-tight text-brand-forest leading-[1.15]">
-                {greeting}
-              </h1>
-              <p className="text-base text-gray-400 font-medium mt-2">
-                {subGreeting}
-              </p>
-              <p className="text-sm text-gray-300 font-normal mt-3 italic max-w-xl leading-relaxed">
-                &ldquo;{dailyNudge}&rdquo;
-              </p>
+            {/* ── SECTION 1: Greeting & Interactive Study Dashboard ── */}
+            <div className="mb-10 text-left">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h1 className="text-3xl md:text-5xl font-medium tracking-tight text-brand-forest leading-[1.15]">
+                    {greeting}
+                  </h1>
+                  <p className="text-sm text-gray-400 font-medium mt-1.5">
+                    {subGreeting}
+                  </p>
+                </div>
+                
+                {/* Desktop Quick Upload Button */}
+                <div className="hidden md:block">
+                  <button
+                    onClick={() => setIsUploadOpen(true)}
+                    className="flex items-center gap-2 rounded-full bg-brand-green hover:bg-brand-green/95 active:scale-[0.98] transition-all px-5 py-2.5 text-xs font-bold text-white cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Upload Study Source</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Study Dashboard Grid (Borrowed from Quiz & Exam Spaces) */}
+              {profile && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 animate-in fade-in duration-300">
+                  {/* Streak Card */}
+                  <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex items-center gap-4 hover:border-brand-green/20 transition-all duration-200">
+                    <div className="relative shrink-0 flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-green/5 border border-brand-green/10">
+                      <Flame className="w-7 h-7 text-brand-green animate-pulse" />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black tracking-wider bg-brand-lime text-brand-green px-2 py-0.5 rounded border border-brand-green/10 uppercase">
+                        Study Streak
+                      </span>
+                      <h3 className="text-xl font-extrabold text-brand-forest mt-1.5 flex items-center gap-1.5">
+                        <span>{profile.streak} Day{profile.streak !== 1 ? 's' : ''}</span>
+                        <span className="text-xs font-bold text-gray-300">({profile.longestStreak} max)</span>
+                      </h3>
+                      <p className="text-[10px] text-gray-400 font-medium mt-0.5">Study daily to keep your streak hot!</p>
+                    </div>
+                  </div>
+
+                  {/* Weekly Challenge Ring Card */}
+                  {challenge ? (
+                    <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex items-center gap-4 hover:border-brand-green/20 transition-all duration-200">
+                      <div className="relative shrink-0 flex items-center justify-center">
+                        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+                          <circle cx="28" cy="28" r="24" stroke="#f3f4f6" strokeWidth="4" />
+                          <circle
+                            cx="28"
+                            cy="28"
+                            r="24"
+                            stroke="#006B3F"
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            strokeDasharray="150.8"
+                            strokeDashoffset={150.8 * (1 - challengeProgress / 100)}
+                            transform="rotate(-90 28 28)"
+                            className="transition-all duration-500 ease-out"
+                          />
+                        </svg>
+                        <span className="absolute text-[10px] font-extrabold text-brand-green">{Math.round(challengeProgress)}%</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 justify-between">
+                          <span className="text-[9px] font-black tracking-wider bg-brand-forest/5 text-brand-forest px-2 py-0.5 rounded border border-brand-forest/10 uppercase">
+                            Weekly Goal
+                          </span>
+                          <span className="text-[9px] font-bold text-brand-green">
+                            +{challenge.xpReward} XP
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-extrabold text-brand-forest mt-1.5 truncate" title={challenge.description}>
+                          {challenge.description}
+                        </h4>
+                        <div className="text-[10px] text-gray-400 font-semibold mt-0.5">
+                          {challenge.progress} / {challenge.target} sessions completed
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex items-center gap-4 hover:border-brand-green/20 transition-all duration-200">
+                      <div className="w-14 h-14 rounded-2xl bg-brand-green/5 border border-brand-green/10 flex items-center justify-center">
+                        <Trophy className="w-7 h-7 text-brand-green" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black tracking-wider bg-brand-lime text-brand-green px-2 py-0.5 rounded border border-brand-green/10 uppercase">
+                          Audience XP
+                        </span>
+                        <h3 className="text-xl font-extrabold text-brand-forest mt-1.5">
+                          {profile.xp.toLocaleString()} XP
+                        </h3>
+                        <p className="text-[10px] text-gray-400 font-medium mt-0.5">Total sessions: {profile.totalSessions}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Skill Insights Card */}
+                  <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex flex-col justify-between hover:border-brand-green/20 transition-all duration-200">
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-black tracking-wider bg-brand-forest text-brand-lime px-2 py-0.5 rounded border border-brand-forest/10 uppercase self-start inline-block">
+                        Skill Insights
+                      </span>
+                      <div className="space-y-1.5 text-left">
+                        {profile.strongTopics && profile.strongTopics.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Strengths:</span>
+                            {profile.strongTopics.slice(0, 2).map((st, i) => (
+                              <span key={i} className="text-[9px] font-extrabold text-brand-green bg-brand-green/5 border border-brand-green/10 px-1.5 py-0.5 rounded-full">
+                                {st}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {profile.weakTopics && profile.weakTopics.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Review:</span>
+                            {profile.weakTopics.slice(0, 2).map((wt, i) => (
+                              <span key={i} className="text-[9px] font-extrabold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded-full">
+                                {wt}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-gray-450 font-semibold italic">Complete quizzes to unlock analytics</p>
+                        )}
+                      </div>
+                    </div>
+                    {profile.averageScore > 0 && (
+                      <div className="text-[9px] text-gray-450 font-bold border-t border-gray-100 pt-1.5 mt-2 flex items-center justify-between">
+                        <span>Avg Test Score</span>
+                        <span className="text-brand-green">{profile.averageScore}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Compact Daily Nudge Banner */}
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-start gap-3 shadow-3xs">
+                <span className="text-base">💡</span>
+                <div>
+                  <h4 className="text-[9px] font-black uppercase tracking-wider text-gray-400">Daily Study Tip</h4>
+                  <p className="text-xs text-brand-forest font-medium mt-0.5 leading-relaxed">
+                    &ldquo;{dailyNudge}&rdquo;
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* ── SECTION 5: Subject Filters ── */}
@@ -417,33 +558,7 @@ function HomeLearningContent() {
                 {filteredDocuments.length > 0 ? (
                   <>
                     <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5">
-                      {/* Create notebook (Mobile) */}
-                      <div
-                        onClick={() => setIsUploadOpen(true)}
-                        className="flex sm:hidden items-center gap-3.5 w-full p-4 rounded-[16px] border border-dashed border-gray-300 bg-white hover:bg-gray-50/50 cursor-pointer transition-all active:scale-[0.99]"
-                      >
-                        <div className="w-9 h-9 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center shrink-0">
-                          <Plus className="w-4.5 h-4.5" />
-                        </div>
-                        <span className="font-bold text-[13px] text-brand-forest">
-                          Create notebook
-                        </span>
-                      </div>
-
-                      {/* Create notebook (Desktop) */}
-                      <div
-                        onClick={() => setIsUploadOpen(true)}
-                        className="hidden sm:flex border border-dashed border-gray-250 hover:border-brand-green/30 bg-white rounded-2xl flex-col items-center justify-center p-5 cursor-pointer hover:bg-gray-50/55 transition-all duration-200 aspect-[1.35/1] sm:aspect-[1.4/1]"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-brand-green/10 text-brand-green flex items-center justify-center mb-3">
-                          <Plus className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-xs text-brand-forest">
-                          Create notebook
-                        </span>
-                      </div>
-
-                      {filteredDocuments.slice(0, 3).map((doc) => (
+                      {filteredDocuments.slice(0, 4).map((doc) => (
                         <DocumentCard
                           key={doc.id || doc._id}
                           doc={doc}
@@ -453,7 +568,7 @@ function HomeLearningContent() {
                       ))}
                     </div>
 
-                    {filteredDocuments.length > 3 && (
+                    {filteredDocuments.length > 4 && (
                       <div className="mt-8 flex justify-center">
                         <button
                           onClick={() => router.push('/library')}
