@@ -309,6 +309,75 @@ function HomeLearningContent() {
               </div>
             )}
 
+            {/* ── SECTION: Study Recommendations ── */}
+            {hasRecommendations && (
+              <div className="mb-10 text-left animate-in fade-in duration-200">
+                <h2 className="text-xs font-bold text-brand-forest uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-brand-green animate-pulse" />
+                  <span>Revision Actions & Weak Spots</span>
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Weak Spot revisions */}
+                  {recommendations?.weakSpots && recommendations.weakSpots.map((rec, idx) => (
+                    <div key={`weak-${idx}`} className="bg-gradient-to-br from-white to-[#FAF6F2] border border-rose-100 rounded-3xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition-all relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 right-0 h-[2px] bg-rose-500/30" />
+                      <div className="space-y-1.5">
+                        <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          Weak Area Detected
+                        </span>
+                        <h4 className="font-extrabold text-sm text-brand-forest leading-snug line-clamp-1 pr-6 group-hover:text-rose-700 transition-colors">
+                          Review {rec.weakTopics?.join(', ') || 'concepts'} in {rec.title}
+                        </h4>
+                        <p className="text-[11.5px] text-gray-400 font-semibold leading-relaxed">
+                          {rec.reason}
+                        </p>
+                      </div>
+                      <div className="flex gap-2.5 mt-4 pt-3.5 border-t border-rose-100/40 w-full justify-between items-center text-left">
+                        <span className="text-[10px] font-bold text-zinc-400">
+                          {rec.subject || 'General'}
+                        </span>
+                        <button
+                          onClick={() => handleStartSession(rec.documentId, 'teach')}
+                          className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black rounded-xl active:scale-[0.98] transition-all cursor-pointer shadow-3xs"
+                        >
+                          Review Now
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Ready to Test revisions */}
+                  {recommendations?.readyToTest && recommendations.readyToTest.map((rec, idx) => (
+                    <div key={`test-${idx}`} className="bg-gradient-to-br from-white to-[#F6FAF2] border border-brand-green/20 rounded-3xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition-all relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 right-0 h-[2px] bg-brand-green/25" />
+                      <div className="space-y-1.5">
+                        <span className="text-[9px] font-black text-brand-green bg-brand-green/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                          Ready for Assessment
+                        </span>
+                        <h4 className="font-extrabold text-sm text-brand-forest leading-snug line-clamp-1 pr-6 group-hover:text-brand-green transition-colors">
+                          Assessment prompt for {rec.title}
+                        </h4>
+                        <p className="text-[11.5px] text-gray-400 font-semibold leading-relaxed">
+                          {rec.reason}
+                        </p>
+                      </div>
+                      <div className="flex gap-2.5 mt-4 pt-3.5 border-t border-brand-green/15 w-full justify-between items-center text-left">
+                        <span className="text-[10px] font-bold text-zinc-400">
+                          {rec.subject || 'General'}
+                        </span>
+                        <button
+                          onClick={() => handleStartSession(rec.documentId, 'quiz')}
+                          className="px-3.5 py-1.5 bg-brand-green hover:bg-brand-green/90 text-white text-[10px] font-black rounded-xl active:scale-[0.98] transition-all cursor-pointer shadow-3xs"
+                        >
+                          Take Test
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* ── SECTION 6: Your Library ── */}
             <div className="mb-6 flex items-center justify-between">
               <div className="flex items-center gap-3">

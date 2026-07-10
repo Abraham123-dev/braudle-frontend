@@ -26,6 +26,7 @@ interface FlashcardsPanelProps {
   isFlipped: boolean;
   setIsFlipped: React.Dispatch<React.SetStateAction<boolean>>;
   onRateCard?: (conceptName: string, quality: number) => Promise<void>;
+  onCreateNewDeck?: () => void;
 }
 
 export default function FlashcardsPanel({
@@ -42,7 +43,8 @@ export default function FlashcardsPanel({
   setCurrentFlashcardIdx,
   isFlipped,
   setIsFlipped,
-  onRateCard
+  onRateCard,
+  onCreateNewDeck
 }: FlashcardsPanelProps) {
 
   const setPricingModalOpen = useStore((state) => state.setPricingModalOpen);
@@ -157,8 +159,19 @@ export default function FlashcardsPanel({
         /* Interactive Flashcard deck */
         <div className="space-y-5 animate-in fade-in duration-200">
           <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-wider animate-in fade-in duration-100">
-            <span className="truncate max-w-[150px]">Topic: {flashcards[currentFlashcardIdx]?.topic}</span>
-            <span>{currentFlashcardIdx + 1} of {flashcards.length}</span>
+            <span className="truncate max-w-[120px]">Topic: {flashcards[currentFlashcardIdx]?.topic}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {onCreateNewDeck && (
+                <button
+                  type="button"
+                  onClick={onCreateNewDeck}
+                  className="px-2 py-0.5 rounded-md border border-zinc-200 text-[9px] font-bold text-zinc-500 hover:text-brand-green hover:border-brand-green bg-white transition-all cursor-pointer"
+                >
+                  + New Deck
+                </button>
+              )}
+              <span>{currentFlashcardIdx + 1} of {flashcards.length}</span>
+            </div>
           </div>
 
           {/* Flip Card */}

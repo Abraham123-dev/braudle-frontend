@@ -84,7 +84,8 @@ interface PracticePanelProps {
     isExam?: boolean,
     difficulty?: string,
     timeLimit?: number,
-    revealStyle?: 'instant' | 'end'
+    revealStyle?: 'instant' | 'end',
+    conceptFocus?: string
   ) => void;
   onSubmitQuiz: (e: React.FormEvent) => void;
   isEmbed?: boolean;
@@ -92,6 +93,7 @@ interface PracticePanelProps {
   onGradeQuestion?: (questionId: string, answer: string) => Promise<any>;
   onExplainQuestion?: (question: any, studentAnswer: string, correctAnswer: string) => void;
   onReviewWeakTopic?: (topic: string) => void;
+  topics?: string[];
 }
 
 /* ─── Component ───────────────────────────────────────────────── */
@@ -112,6 +114,7 @@ export default function PracticePanel({
   onGradeQuestion,
   onExplainQuestion,
   onReviewWeakTopic,
+  topics = [],
 }: PracticePanelProps) {
   const user = useStore((state) => state.user);
 
@@ -125,6 +128,7 @@ export default function PracticePanel({
   const [revealStyle, setRevealStyle] = useState<'instant' | 'end'>('instant');
   const [examCountType, setExamCountType] = useState<'10' | '20' | '30' | 'custom'>('10');
   const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
+  const [conceptFocus, setConceptFocus] = useState<string>('');
 
   useEffect(() => {
     setLimitError(null);
@@ -654,7 +658,7 @@ export default function PracticePanel({
                       type="button"
                       id="quiz-end-submit-btn"
                       onClick={(e) => {
-                        if (quiz.revealStyle === 'end' && !autoSubmitted) onSubmitQuiz(e as any);
+                        if (quiz.revealStyle === 'end') onSubmitQuiz(e as any);
                         setShowResults(true);
                       }}
                       className="px-5 py-2.5 bg-brand-green hover:bg-brand-forest text-white rounded-full text-sm font-medium transition-colors cursor-pointer whitespace-nowrap"
@@ -852,6 +856,44 @@ export default function PracticePanel({
             )}
           </div>
 
+          {/* ── Concept Focus Selection (Multi-select Pills) ── */}
+          {topics && topics.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">
+                Concept Focus <span className="font-normal normal-case">· Optional</span>
+              </label>
+              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-gray-50/50 border border-gray-100 rounded-[16px]">
+                {topics.map((t) => {
+                  const selectedList = conceptFocus ? conceptFocus.split(',').map(x => x.trim()).filter(Boolean) : [];
+                  const isSelected = selectedList.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        let newList;
+                        if (isSelected) {
+                          newList = selectedList.filter(x => x !== t);
+                        } else {
+                          newList = [...selectedList, t];
+                        }
+                        setConceptFocus(newList.join(','));
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer select-none active:scale-[0.98] ${
+                        isSelected 
+                          ? 'bg-brand-green border-brand-green text-white shadow-3xs'
+                          : 'bg-white border-zinc-200 text-brand-forest hover:bg-zinc-50'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[9px] text-gray-400 font-normal">Select specific concepts to focus on, or deselect all to cover the entire source material.</p>
+            </div>
+          )}
+
           {/* ── Custom focus ── */}
           <div className="space-y-2">
             <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">
@@ -905,7 +947,8 @@ export default function PracticePanel({
                     isExam,
                     difficulty,
                     isTimed ? timeLimitMinutes : 0,
-                    revealStyle
+                    revealStyle,
+                    conceptFocus || undefined
                   );
                   const userId = user?.id || user?._id || 'guest';
                   const key = isExam ? `braudle_last_generated_exam_${userId}` : `braudle_last_generated_quiz_${userId}`;

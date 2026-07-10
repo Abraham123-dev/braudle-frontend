@@ -87,6 +87,7 @@ export default function StudioPanel({
       iconBg: 'bg-rose-500/10 text-rose-700',
       icon: FlashcardsIcon,
       onClick: () => {
+        setSelectedFlashcardDeckId('new');
         setRightPanelTab('flashcards');
       },
       badge: dueCount && dueCount > 0 ? `${dueCount} due` : undefined,

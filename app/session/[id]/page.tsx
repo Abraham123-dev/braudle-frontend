@@ -297,6 +297,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     setIsExamSession(false);
     setQuiz(null);
     setQuizResult(null);
+    setActiveMobileTab('studio');
     try {
       await handleGenerateQuiz('objective', numQuestions, `Focus on the concept: ${conceptName}`, false, difficulty, 0, 'instant', conceptName);
     } catch (err: any) {
@@ -325,6 +326,7 @@ export default function SessionPage({ params }: SessionPageProps) {
   const handleExplainQuizQuestion = (question: any, studentAnswer: string, correctAnswer: string) => {
     const userMessage = `I am taking a quiz on this material and was given this question: "${question.question}"\n\nI chose this as the answer: "${studentAnswer}"\n\nThat answer was incorrect. The correct answer is "${correctAnswer}".\n\nHelp me understand why my answer was incorrect.`;
     setInput(userMessage);
+    setCenterTab('chat');
     setActiveMobileTab('chat');
     setTimeout(() => {
       const sendBtn = document.getElementById('chat-send-btn');
@@ -512,7 +514,9 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   // Scan messages to extract flashcards dynamically and select latest by default
   useEffect(() => {
-    if (parsedFlashcardDecks.length > 0) {
+    if (selectedFlashcardDeckId === 'new') {
+      setFlashcards([]);
+    } else if (parsedFlashcardDecks.length > 0) {
       const activeDeck = parsedFlashcardDecks.find(d => d.id === selectedFlashcardDeckId) || parsedFlashcardDecks[parsedFlashcardDecks.length - 1];
       setFlashcards(activeDeck.cards);
     } else {
@@ -679,32 +683,44 @@ export default function SessionPage({ params }: SessionPageProps) {
     if (!input.trim() || isStreaming) return;
 
     const userText = input.trim().toLowerCase();
-    const isQuizReq = userText.includes('quiz') || userText.includes('practice question') || userText.includes('practice test') || userText.includes('test me');
-    const isExamReq = /\b(?:mock\s+)?exams?\b/i.test(userText);
-    const isFcReq = userText.includes('flashcard') || userText.includes('flash card');
+    
+    // Check if the request is a tutoring/explanation request rather than a direct setup command
+    const isTutorReviewOrExplain = 
+      userText.includes('finished a quiz') || 
+      userText.includes('taking a quiz') || 
+      userText.includes('teach me') || 
+      userText.includes('explain why') || 
+      userText.includes('help me understand') || 
+      userText.includes('explain the concept');
 
-    if (isQuizReq) {
-      setIsExamSession(false);
-      setQuiz(null);
-      setQuizResult(null);
-      setRightPanelTab('quiz');
-      setActiveMobileTab('studio');
-      setShowRightPane(true);
-      setInput('');
-      return;
-    } else if (isExamReq) {
-      setIsExamSession(true);
-      setQuiz(null);
-      setQuizResult(null);
-      setRightPanelTab('quiz');
-      setActiveMobileTab('studio');
-      setShowRightPane(true);
-      setInput('');
-      return;
-    } else if (isFcReq) {
-      setRightPanelTab('flashcards');
-      setActiveMobileTab('studio');
-      setShowRightPane(true);
+    if (!isTutorReviewOrExplain) {
+      const isQuizReq = userText.includes('quiz') || userText.includes('practice question') || userText.includes('practice test') || userText.includes('test me');
+      const isExamReq = /\b(?:mock\s+)?exams?\b/i.test(userText);
+      const isFcReq = userText.includes('flashcard') || userText.includes('flash card');
+
+      if (isQuizReq) {
+        setIsExamSession(false);
+        setQuiz(null);
+        setQuizResult(null);
+        setRightPanelTab('quiz');
+        setActiveMobileTab('studio');
+        setShowRightPane(true);
+        setInput('');
+        return;
+      } else if (isExamReq) {
+        setIsExamSession(true);
+        setQuiz(null);
+        setQuizResult(null);
+        setRightPanelTab('quiz');
+        setActiveMobileTab('studio');
+        setShowRightPane(true);
+        setInput('');
+        return;
+      } else if (isFcReq) {
+        setRightPanelTab('flashcards');
+        setActiveMobileTab('studio');
+        setShowRightPane(true);
+      }
     }
 
     handleSendMessage(e);
@@ -1482,46 +1498,48 @@ export default function SessionPage({ params }: SessionPageProps) {
                      />
                    )}
 
-                   {rightPanelTab === 'quiz' && (
-                     <div className="animate-in fade-in duration-200 lg:flex-1 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
-                      <PracticePanel 
-                         quiz={quiz}
-                         selectedAnswers={selectedAnswers}
-                         setSelectedAnswers={setSelectedAnswers}
-                         loadingQuiz={loadingQuiz}
-                         submittingQuiz={submittingQuiz}
-                         quizResult={quizResult}
-                         quizWeakTopics={quizWeakTopics}
-                         onClose={() => setRightPanelTab('studio')}
-                         onGenerateQuiz={handleGenerateQuiz}
-                         onSubmitQuiz={handleQuizSubmit}
-                         isEmbed={true}
-                         isExam={isExamSession}
-                         onGradeQuestion={handleGradeQuestion}
-                         onExplainQuestion={handleExplainQuizQuestion}
-                         onReviewWeakTopic={handleReviewWeakTopic}
-                       />
-                     </div>
-                   )}
+                    {rightPanelTab === 'quiz' && (
+                      <div className="animate-in fade-in duration-200 lg:flex-1 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+                       <PracticePanel 
+                          quiz={quiz}
+                          selectedAnswers={selectedAnswers}
+                          setSelectedAnswers={setSelectedAnswers}
+                          loadingQuiz={loadingQuiz}
+                          submittingQuiz={submittingQuiz}
+                          quizResult={quizResult}
+                          quizWeakTopics={quizWeakTopics}
+                          onClose={() => setRightPanelTab('studio')}
+                          onGenerateQuiz={handleGenerateQuiz}
+                          onSubmitQuiz={handleQuizSubmit}
+                          isEmbed={true}
+                          isExam={isExamSession}
+                          onGradeQuestion={handleGradeQuestion}
+                          onExplainQuestion={handleExplainQuizQuestion}
+                          onReviewWeakTopic={handleReviewWeakTopic}
+                          topics={topics}
+                        />
+                      </div>
+                    )}
 
-                   {rightPanelTab === 'flashcards' && (
-                     <FlashcardsPanel
-                       flashcards={flashcards}
-                       flashcardCount={flashcardCount}
-                       setFlashcardCount={setFlashcardCount}
-                       flashcardFocus={flashcardFocus}
-                       setFlashcardFocus={setFlashcardFocus}
-                       flashcardLimitError={flashcardLimitError}
-                       isStreaming={isStreaming}
-                       isGeneratingFlashcards={isGeneratingFlashcards}
-                       handleCreateCustomFlashcards={handleCreateCustomFlashcards}
-                       currentFlashcardIdx={currentFlashcardIdx}
-                       setCurrentFlashcardIdx={setCurrentFlashcardIdx}
-                       isFlipped={isFlipped}
-                       setIsFlipped={setIsFlipped}
-                       onRateCard={handleRateConcept}
-                     />
-                   )}
+                    {rightPanelTab === 'flashcards' && (
+                      <FlashcardsPanel
+                        flashcards={flashcards}
+                        flashcardCount={flashcardCount}
+                        setFlashcardCount={setFlashcardCount}
+                        flashcardFocus={flashcardFocus}
+                        setFlashcardFocus={setFlashcardFocus}
+                        flashcardLimitError={flashcardLimitError}
+                        isStreaming={isStreaming}
+                        isGeneratingFlashcards={isGeneratingFlashcards}
+                        handleCreateCustomFlashcards={handleCreateCustomFlashcards}
+                        currentFlashcardIdx={currentFlashcardIdx}
+                        setCurrentFlashcardIdx={setCurrentFlashcardIdx}
+                        isFlipped={isFlipped}
+                        setIsFlipped={setIsFlipped}
+                        onRateCard={handleRateConcept}
+                        onCreateNewDeck={() => setSelectedFlashcardDeckId('new')}
+                      />
+                    )}
 
                    {rightPanelTab === 'summary' && (
                      <SummaryPanel
