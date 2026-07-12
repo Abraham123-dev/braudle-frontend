@@ -7,36 +7,30 @@ import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import PracticePanel from '@/components/quiz/PracticePanel';
 import MarkdownRenderer, { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
-import LeftSidebar from '@/components/tutor/LeftSidebar';
-import ConceptExplanationModal from '@/components/tutor/ConceptExplanationModal';
+import dynamic from 'next/dynamic';
+const PDFWorkspace = dynamic(() => import('@/components/tutor/PDFWorkspace'), {
+  ssr: false,
+});
 import { AddNoteModal, EditNoteModal } from '@/components/tutor/SessionNotesModals';
 import StudioPanel from '@/components/tutor/StudioPanel';
 import FlashcardsPanel from '@/components/tutor/FlashcardsPanel';
 import SummaryPanel from '@/components/tutor/SummaryPanel';
 import BraudleMap from '@/components/tutor/BraudleMap';
-import { 
-  BookOpen, 
-  Award, 
-  ArrowLeft, 
+import SessionRail, { ActiveView, ActiveDrawer } from '@/components/tutor/SessionRail';
+import LeftSidebar from '@/components/tutor/LeftSidebar';
+import Logo from '@/components/Logo';
+import SlideDrawer from '@/components/tutor/SlideDrawer';
+import {
   ArrowRight,
-  Send, 
   AlertCircle,
   FileText,
-  ChevronRight,
-  FileQuestion,
-  Trash2,
-  MoreVertical,
   X,
   Brain,
   Sparkles,
-  Headphones,
-  Presentation,
-  Video,
-  GitBranch,
-  FileBarChart,
-  Table,
   Lock,
-  Zap
+  Zap,
+  AlignJustify,
+  Layers
 } from 'lucide-react';
 
 interface SessionPageProps {
@@ -185,6 +179,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     activeSessionError,
     setActiveSessionError,
     triggerTutorStream,
+    triggerExplainStream,
     lastSentMessage,
     dueCount,
     handleRateConcept,
@@ -203,6 +198,16 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   // Tab State for Right Panel
   const [rightPanelTab, setRightPanelTab] = React.useState<'studio' | 'quiz' | 'flashcards' | 'summary'>('studio');
+  const [isWorkspaceExpanded, setIsWorkspaceExpanded] = React.useState(false);
+
+  // Key Concepts Panel Toggle State
+  const [isConceptsOpen, setIsConceptsOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsConceptsOpen(true);
+    }
+  }, []);
   const [detailedSummary, setDetailedSummary] = React.useState('');
   const [loadingSummary, setLoadingSummary] = React.useState(false);
   const [summaryError, setSummaryError] = React.useState('');
@@ -225,16 +230,51 @@ export default function SessionPage({ params }: SessionPageProps) {
     }
   };
 
+  const [activeMobileTab, setActiveMobileTab] = React.useState<'sources' | 'chat' | 'studio'>('chat');
+  const [centerTab, setCenterTab] = React.useState<'chat' | 'map' | 'pdf' | 'quiz' | 'flashcards' | 'summary' | 'concepts'>('chat');
+  // New command-center nav state
+  const [isMobileNavOpen, setIsMobileNavOpen] = React.useState(false);
+  const [isFocusMode, setIsFocusMode] = React.useState(false);
+
   React.useEffect(() => {
-    if (rightPanelTab === 'summary' && !detailedSummary) {
+    if (centerTab === 'summary' && !detailedSummary) {
       fetchDetailedSummary();
     }
-  }, [rightPanelTab]);
+  }, [centerTab]);
 
-  const [activeMobileTab, setActiveMobileTab] = React.useState<'sources' | 'chat' | 'studio'>('chat');
-  const [centerTab, setCenterTab] = React.useState<'chat' | 'map'>('chat');
+  // Derived: map rightPanelTab+showRightPane → activeDrawer
+  const activeDrawer: ActiveDrawer = ['quiz', 'flashcards', 'concepts', 'summary'].includes(centerTab) ? (centerTab as ActiveDrawer) : null;
+  const setActiveDrawer = (drawer: ActiveDrawer) => {
+    if (drawer === null) {
+      setCenterTab('chat');
+    } else {
+      setCenterTab(drawer);
+    }
+  };
 
-  // ── Braudle Map Handlers ──────────────────────────────────────────────────
+  const handleViewChange = (view: ActiveView) => {
+    setCenterTab(view);
+    if (view === 'chat') setActiveMobileTab('chat');
+    else if (view === 'pdf') setActiveMobileTab('chat');
+    else if (view === 'map') setActiveMobileTab('chat');
+    setIsMobileNavOpen(false);
+  };
+
+  const handleDrawerChange = (drawer: ActiveDrawer) => {
+    if (drawer === null) {
+      setCenterTab('chat');
+    } else {
+      setCenterTab(drawer);
+      if (drawer === 'concepts') {
+        setActiveMobileTab('studio');
+      } else {
+        setActiveMobileTab('studio');
+      }
+    }
+    setIsMobileNavOpen(false);
+  };
+
+  // ────────────────────────────────────────────────────────────────────────────────────────
   const handleMapAskTutor = async (conceptName: string) => {
     setCenterTab('chat');
     setActiveMobileTab('chat');
@@ -243,6 +283,20 @@ export default function SessionPage({ params }: SessionPageProps) {
       await triggerTutorStream(`Initiate Socratic teaching session: Focus on the concept "${conceptName}". Teach me this concept using analogies and interactive questions, and check my understanding as we go.`);
     } catch (err: any) {
       console.error('Failed to initiate concept tutor:', err);
+    }
+  };
+
+  const handleExplainSelection = async (selectedText: string) => {
+    setCenterTab('chat');
+    setActiveMobileTab('chat');
+    try {
+      setMessages(prev => [
+        ...prev,
+        { role: 'user', content: `Please explain this highlighted section: "${selectedText}"`, timestamp: new Date().toISOString() }
+      ]);
+      await triggerExplainStream(selectedText);
+    } catch (err: any) {
+      console.error('Failed to explain selection:', err);
     }
   };
 
@@ -263,7 +317,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         const formattedLines = response.flashcards.map(fc => 
           `FLASHCARD | TOPIC: ${fc.topic} | FRONT: ${fc.front} | BACK: ${fc.back}`
         );
-        formattedLines.push(`💡 These flashcards have been saved to your profile. Want to keep studying, try a practice question, or move to the next section?`);
+        formattedLines.push(`ðŸ’¡ These flashcards have been saved to your profile. Want to keep studying, try a practice question, or move to the next section?`);
         const assistantText = formattedLines.join('\n');
 
         const newMsgUser = {
@@ -304,6 +358,39 @@ export default function SessionPage({ params }: SessionPageProps) {
       console.error('Failed to auto-generate concept quiz:', err);
     }
   };
+
+  const handleExplainPage = async (pageNum: number, pageText: string) => {
+    const prompt = `Please explain the key concepts on Page ${pageNum} of the document:\n\n"${pageText.slice(0, 3000)}"`;
+    setMessages((prev: any) => [...prev, { role: 'user', content: prompt, timestamp: new Date().toISOString() }]);
+    setCenterTab('chat');
+    try {
+      await triggerTutorStream(prompt);
+    } catch (err) {
+      console.error('Failed to trigger tutor stream:', err);
+    }
+  };
+
+  const handleGenerateQuizPage = async (pageNum: number, pageText: string) => {
+    const instructions = `Focus exclusively on this content from Page ${pageNum}:\n\n"${pageText.slice(0, 3000)}"`;
+    setRightPanelTab('quiz');
+    setShowRightPane(true);
+    setIsExamSession(false);
+    setQuiz(null);
+    setQuizResult(null);
+    setActiveMobileTab('studio');
+    try {
+      await handleGenerateQuiz('objective', 5, instructions, false, 'medium', 0, 'instant', `Page ${pageNum} Content`);
+    } catch (err) {
+      console.error('Failed to generate page quiz:', err);
+    }
+  };
+
+  const handleGenerateFlashcardsPage = async (pageNum: number, pageText: string) => {
+    const firstLine = pageText.split('\n')[0] || '';
+    const cleanConceptName = `Page ${pageNum}: ${firstLine.slice(0, 80).trim()}`;
+    await handleMapStudyFlashcards(cleanConceptName);
+  };
+
   const [isExamSession, setIsExamSession] = React.useState(false);
   const [flashcardCount, setFlashcardCount] = React.useState(15);
   const [flashcardFocus, setFlashcardFocus] = React.useState('');
@@ -436,7 +523,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         type: 'quiz-group',
         id: 'group-quiz',
         title: `${docTitle} Quizzes`,
-        subtitle: `1 source · ${quizzes.length} ${quizzes.length === 1 ? 'attempt' : 'attempts'}`,
+        subtitle: `1 source Â· ${quizzes.length} ${quizzes.length === 1 ? 'attempt' : 'attempts'}`,
         date: quizzes[0].submittedAt || quizzes[0].createdAt,
         items: quizzes.map((q, idx) => ({
           id: q._id,
@@ -456,7 +543,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         type: 'exam-group',
         id: 'group-exam',
         title: `${docTitle} Exams`,
-        subtitle: `1 source · ${exams.length} ${exams.length === 1 ? 'attempt' : 'attempts'}`,
+        subtitle: `1 source Â· ${exams.length} ${exams.length === 1 ? 'attempt' : 'attempts'}`,
         date: exams[0].submittedAt || exams[0].createdAt,
         items: exams.map((q, idx) => ({
           id: q._id,
@@ -475,7 +562,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         type: 'flashcards-group',
         id: 'group-flashcards',
         title: `${docTitle} Flashcards`,
-        subtitle: `1 source · ${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`,
+        subtitle: `1 source Â· ${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`,
         date: decks[0].date,
         items: decks.map((deck, idx) => ({
           id: deck.id,
@@ -586,7 +673,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     }, 150);
   };
 
-  // Review Weak Topic from quiz results — switches to chat and auto-sends a focused tutoring request
+  // Review Weak Topic from quiz results â€” switches to chat and auto-sends a focused tutoring request
   const handleReviewWeakTopic = (topicName: string) => {
     setRightPanelTab('studio');
     setShowRightPane(false);
@@ -726,802 +813,622 @@ export default function SessionPage({ params }: SessionPageProps) {
     handleSendMessage(e);
   };
 
+  const drawerTitle = (): string => {
+    if (rightPanelTab === 'quiz') return isExamSession ? 'Exam Simulation' : 'Practice Quiz';
+    if (rightPanelTab === 'flashcards') return 'Flashcard Deck';
+    if (rightPanelTab === 'summary') return 'Study Summary';
+    return 'Study Tools';
+  };
+
   return (
     <ProtectedRoute>
-      <div className="fixed inset-0 bg-[#F0F4F9] text-brand-forest font-sans flex flex-col selection:bg-brand-lime selection:text-brand-green overflow-hidden">
-        
-        {/* Workspace Top Header: Dynamic PDF Title */}
-        <header className="py-4 px-6 md:px-8 bg-[#F0F4F9] sticky top-0 z-40 animate-in fade-in duration-200">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            
-            {/* Back Arrow & Document Details */}
-            <div className="flex items-center gap-4 min-w-0">
-              <a 
-                href="/home"
-                className="p-2 rounded-xl text-gray-400 hover:text-brand-forest hover:bg-gray-150 bg-white border border-gray-200/80 transition-all cursor-pointer shrink-0"
+      <div className="fixed inset-0 text-brand-forest font-sans flex overflow-hidden selection:bg-brand-lime selection:text-brand-green">
+
+        {/* ── MOBILE NAV BACKDROP ─────────────────────────────────────── */}
+        <div
+          className={`fixed inset-0 bg-brand-forest/40 backdrop-blur-3xs z-40 lg:hidden transition-all duration-300 ${
+            isMobileNavOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setIsMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+
+        {/* ── SESSION RAIL (Desktop slim rail + Mobile slide-in) ── */}
+        <SessionRail
+          activeView={centerTab as ActiveView}
+          activeDrawer={activeDrawer}
+          onViewChange={handleViewChange}
+          onDrawerChange={handleDrawerChange}
+          isMobileOpen={isMobileNavOpen}
+          onMobileClose={() => setIsMobileNavOpen(false)}
+          docTitle={docTitle}
+          isFocusMode={isFocusMode}
+          onFocusToggle={() => setIsFocusMode(f => !f)}
+          isExamSession={isExamSession}
+          onExamModeChange={(isExam) => setIsExamSession(isExam)}
+        />
+
+        {/* ── MAIN CONTENT AREA ───────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white">
+
+          {/* Unified persistent session header */}
+          <header className="w-full bg-white px-3 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between shrink-0 z-30">
+            {/* Left side: View switcher on desktop, Hamburger on mobile */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* Mobile hamburger button */}
+              <button
+                onClick={() => setIsMobileNavOpen(true)}
+                className="lg:hidden flex flex-col gap-1 items-start justify-center h-9 w-9 hover:bg-zinc-55 rounded-xl transition-all cursor-pointer shrink-0"
+                aria-label="Open navigation"
               >
-                <ArrowLeft className="w-4 h-4" />
-              </a>
-              
-              <div className="min-w-0 text-left">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green block">
-                  Study Space
-                </span>
-                <h1 className="text-base md:text-lg font-bold text-brand-forest truncate leading-tight" title={docTitle}>
-                  {docTitle}
-                </h1>
-              </div>
+                <div className="h-0.5 w-5 bg-brand-forest rounded-full" />
+                <div className="h-0.5 w-3.5 bg-brand-forest rounded-full" />
+                <div className="h-0.5 w-5 bg-brand-forest rounded-full" />
+              </button>
+
+              {/* Desktop switcher pills */}
+              {!isProcessingDoc && !loading && !error && (
+                <div className="hidden lg:flex bg-zinc-55 border border-zinc-100 p-0.5 rounded-xl gap-0.5 shadow-2xs">
+                  {[
+                    { id: 'chat' as const, label: '💬 Chat' },
+                    { id: 'pdf' as const, label: '📄 PDF' },
+                    { id: 'map' as const, label: '🗺️ Map' },
+                  ].map(tab => {
+                    const isActive = centerTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => { handleViewChange(tab.id); }}
+                        className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer rounded-lg font-sans ${
+                          isActive 
+                            ? 'bg-brand-green text-white shadow-xs' 
+                            : 'text-zinc-400 hover:text-brand-forest'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Actions Panel */}
-            <div className="flex items-center gap-3">
-              {/* Show right panel toggle on desktop if collapsed */}
-              {!showRightPane && (
+            {/* Center: Note Title (with branding hidden on mobile to maximize space) */}
+            <div className="flex-grow flex flex-col items-center justify-center text-center min-w-0 px-2 select-none">
+              <div className="hidden sm:flex items-center gap-1.5 justify-center leading-none">
+                <Logo size={16} className="shrink-0" />
+                <span className="font-extrabold text-[13px] text-brand-green tracking-tight font-sans">Braudle</span>
+              </div>
+              <h1 className="text-xs sm:text-[10px] font-extrabold sm:font-bold text-brand-forest sm:text-gray-400 truncate max-w-[140px] sm:max-w-[320px] font-sans mt-0.5 leading-none" title={docTitle}>
+                {docTitle}
+              </h1>
+            </div>
+
+            {/* Right side: Focus button, Concepts toggle, and Avatar */}
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 justify-end">
+              {isFocusMode && (
                 <button
-                  onClick={() => setShowRightPane(true)}
-                  className="hidden lg:block px-4 py-2 text-xs font-bold border border-gray-250 hover:bg-gray-50 rounded-full transition-all cursor-pointer"
+                  onClick={() => setIsFocusMode(false)}
+                  className="hidden lg:block px-3 py-1.5 text-[9px] font-black uppercase tracking-wider bg-brand-forest text-brand-lime rounded-lg cursor-pointer hover:bg-brand-green transition-all font-sans"
                 >
-                  Show Studio
+                  Exit Focus
                 </button>
               )}
-
+              {/* Concepts Toggle Button */}
+              {!isProcessingDoc && !loading && !error && (
+                <button
+                  onClick={() => setIsConceptsOpen(!isConceptsOpen)}
+                  className={`p-1.5 sm:p-2.5 h-8 w-8 sm:w-auto rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1.5 font-sans ${
+                    isConceptsOpen
+                      ? 'bg-brand-yellow/15 border-brand-yellow/35 text-brand-forest shadow-2xs'
+                      : 'bg-white border-zinc-100 text-zinc-400 hover:text-brand-forest hover:bg-zinc-55'
+                  }`}
+                  title="Toggle Key Concepts & Sources"
+                >
+                  <Brain className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline text-[9px] font-black uppercase tracking-wider">Concepts</span>
+                </button>
+              )}
+              {/* Profile avatar / image */}
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center font-bold text-xs font-sans shrink-0 uppercase select-none">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  (() => {
+                    if (!user) return 'U';
+                    if (user.name) {
+                      const parts = user.name.split(' ');
+                      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                      return user.name.slice(0, 2).toUpperCase();
+                    }
+                    if (user.email) return user.email.slice(0, 2).toUpperCase();
+                    return 'U';
+                  })()
+                )}
+              </div>
             </div>
+          </header>
 
-          </div>
-        </header>
-
-        {loading ? (
-          /* Skeleton Workspace Layout */
-          <div className="flex-1 flex flex-col lg:flex-row bg-[#EEF2F6] lg:p-4 lg:gap-4 overflow-hidden animate-pulse select-none">
-            {/* Left Sidebar Skeleton */}
-            <aside className="hidden lg:flex w-72 bg-white p-6 flex-col justify-between shrink-0 rounded-3xl border border-gray-200/50 shadow-2xs">
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <div className="h-3 w-20 bg-gray-100 rounded-full" />
-                  <div className="flex flex-wrap gap-2">
-                    <div className="h-6 w-16 bg-gray-100 rounded-lg" />
-                    <div className="h-6 w-24 bg-gray-100 rounded-lg" />
-                    <div className="h-6 w-20 bg-gray-100 rounded-lg" />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="h-3 w-28 bg-gray-100 rounded-full" />
-                  <div className="space-y-2">
-                    <div className="h-14 bg-gray-50 border border-gray-100 rounded-2xl" />
-                    <div className="h-14 bg-gray-50 border border-gray-100 rounded-2xl" />
-                  </div>
-                </div>
+          {/* â”€â”€ CENTER CANVAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {loading ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 animate-pulse">
+              <div className="w-full max-w-xl space-y-4">
+                <div className="h-48 bg-white/80 border border-zinc-200/50 rounded-3xl" />
+                <div className="h-4 bg-white/80 rounded-full w-3/4" />
+                <div className="h-4 bg-white/80 rounded-full w-1/2" />
               </div>
-              <div className="h-4 w-32 bg-gray-100 rounded-full" />
-            </aside>
-
-            {/* Center Chat Skeleton */}
-            <section className="flex-1 flex flex-col bg-white overflow-hidden rounded-3xl border border-gray-200/50 shadow-2xs">
-              <div className="border-b border-gray-50 py-3.5 px-6">
-                <div className="h-3 w-32 bg-gray-100 rounded-full" />
-              </div>
-              <div className="flex-1 p-6 md:p-8 space-y-6">
-                <div className="max-w-2xl bg-gray-50/50 border border-gray-100 rounded-3xl p-6 space-y-4">
-                  <div className="h-4 w-40 bg-gray-100 rounded-full" />
-                  <div className="h-3 w-full bg-gray-100 rounded-full" />
-                </div>
-              </div>
-              <div className="border-t border-gray-100 p-6 space-y-4">
-                <div className="h-12 bg-gray-50 border border-gray-100 rounded-2xl" />
-              </div>
-            </section>
-          </div>
-        ) : error ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-            <div className="max-w-md w-full border border-gray-100 rounded-3xl p-8 space-y-6">
-              <div className="w-12 h-12 bg-rose-50 border border-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <p className="text-sm font-semibold text-brand-forest">{error}</p>
-              <a 
-                href="/home"
-                className="w-full block py-3 bg-brand-green text-white rounded-xl text-xs font-bold hover:bg-brand-green/90 transition-all text-center"
-              >
-                Return to Home Learning
-              </a>
             </div>
-          </div>
-        ) : (
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {/* Mobile Navigation Tabs (visible only on mobile/tablet) */}
-            <div className="lg:hidden flex border-b border-zinc-200/80 bg-[#F0F4F9] px-4 shrink-0 justify-around select-none">
-              {[
-                { id: 'sources', label: 'Key Concepts' },
-                { id: 'chat', label: 'Chat' },
-                { id: 'studio', label: 'Braudle Modes' },
-              ].map((tab) => {
-                const isActive = activeMobileTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveMobileTab(tab.id as 'sources' | 'chat' | 'studio')}
-                    className={`py-3.5 px-4 text-xs font-extrabold transition-all relative border-b-2 cursor-pointer ${
-                      isActive 
-                        ? 'text-brand-forest border-brand-green font-black' 
-                        : 'text-gray-400 border-transparent hover:text-brand-forest'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+          ) : error ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+              <div className="max-w-md w-full border border-gray-100 rounded-3xl p-8 space-y-6 bg-white">
+                <div className="w-12 h-12 bg-rose-50 border border-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-semibold text-brand-forest font-sans">{error}</p>
+                <a href="/home" className="w-full block py-3 bg-brand-green text-white rounded-xl text-xs font-bold hover:bg-brand-green/90 transition-all text-center font-sans">
+                  Return to Library
+                </a>
+              </div>
             </div>
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
 
-            <div className="flex-1 min-h-0 flex relative overflow-hidden p-3 sm:p-4 lg:p-5 pt-3 sm:pt-0 gap-4">
-              
-              {/* PANEL 1: LEFT SIDEBAR (Sources & Key Concepts) */}
-              <LeftSidebar
-                docTitle={docTitle}
-                topics={topics}
-                onConceptClick={handleConceptClick}
-                className={activeMobileTab === 'sources' 
-                  ? 'flex flex-1 w-full bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left animate-in fade-in duration-200' 
-                  : `${isExpandedRightPane ? 'lg:hidden' : 'hidden lg:flex'} w-64 bg-white p-6 flex-col justify-between overflow-y-auto shrink-0 select-none text-left lg:rounded-3xl lg:border lg:border-zinc-200/50 lg:shadow-2xs`}
-              />
-
-              {/* PANEL 2: CENTER CANVAS (Tutor Chat Space) */}
-              <section className={`flex-1 flex flex-col bg-white overflow-hidden lg:rounded-3xl lg:border lg:border-zinc-200/50 lg:shadow-2xs ${
-                isExpandedRightPane
-                  ? 'hidden'
-                  : activeMobileTab === 'chat' 
-                    ? 'flex flex-1 w-full' 
-                    : 'hidden lg:flex'
-              }`}>
-                
-                {/* Top Greeting Ribbon & Segmented Workspace Toggle */}
-                <div className="border-b border-zinc-200/60 py-3 px-6 flex items-center justify-between bg-gray-50/50 select-none shrink-0">
-                  <span className="text-xs text-brand-forest/60 font-semibold uppercase tracking-wider">
-                    {timeGreeting}
-                  </span>
-                  
-                  {!isProcessingDoc && (
-                    <div className="flex bg-[#E2E6DD]/40 border border-zinc-200/40 p-0.5 rounded-xl gap-0.5 shadow-3xs">
-                      <button
-                        onClick={() => setCenterTab('chat')}
-                        className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer rounded-lg ${
-                          centerTab === 'chat'
-                            ? 'bg-white text-brand-forest shadow-3xs'
-                            : 'text-gray-400 hover:text-brand-forest'
-                        }`}
-                      >
-                        💬 Chat
-                      </button>
-                      <button
-                        onClick={() => setCenterTab('map')}
-                        className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer rounded-lg ${
-                          centerTab === 'map'
-                            ? 'bg-white text-brand-forest shadow-3xs'
-                            : 'text-gray-400 hover:text-brand-forest'
-                        }`}
-                      >
-                        🗺️ Map
-                      </button>
-                    </div>
-                  )}
-                </div>
-              {isProcessingDoc ? (
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                  <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-6 animate-in fade-in duration-300">
-                    <div className="relative w-16 h-16 flex items-center justify-center">
-                      <div className="absolute inset-0 rounded-full border-4 border-gray-100 border-t-brand-green animate-spin" />
-                      <Brain className="w-6 h-6 text-brand-green animate-pulse" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="font-extrabold text-brand-forest text-sm sm:text-base">
-                        Preparing your Study Workspace
-                      </h3>
-                      <p className="text-xs text-gray-400 font-medium max-w-sm leading-relaxed">
-                        We are ingestion-mapping your document. This workspace will activate automatically.
-                      </p>
-                    </div>
-                    
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-100 rounded-full shadow-2xs">
-                      <div className="w-2 h-2 rounded-full bg-brand-green animate-ping" />
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-brand-forest">
-                        {processingStage}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : centerTab === 'map' ? (
+              {/* Keep-alive center panels */}
+              {/* TAB: Map */}
+              <div className={`flex-1 flex flex-col min-h-0 w-full h-full ${centerTab === 'map' ? 'animate-in fade-in duration-200' : 'hidden'}`}>
                 <BraudleMap
                   documentId={documentId}
                   onAskTutor={handleMapAskTutor}
                   onGenerateQuiz={handleMapGenerateQuiz}
                   onStudyFlashcards={handleMapStudyFlashcards}
                 />
-              ) : (
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                    {/* NotebookLM Style Document Cover Card */}
-                    {!hasChatted && (
-                  <div className="bg-[#E9EEF6]/65 border border-zinc-200/50 rounded-3xl p-6 text-left relative overflow-hidden mb-6 group transition-all hover:bg-[#E9EEF6]/80">
-                    {/* Floating light decorative circle */}
-                    <div className="absolute -right-4 -bottom-4 w-28 h-28 bg-white/20 rounded-full blur-xl pointer-events-none" />
-                    
-                    <div className="flex items-center justify-between mb-5">
-                      {/* Orange Spark Icon */}
-                      <div className="w-10 h-10 rounded-2xl bg-white text-amber-500 flex items-center justify-center shadow-2xs border border-zinc-200/30">
-                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                          <path d="M11.5 2C11.5 2 12.3 8.3 12.3 8.3L19 9.5L12.3 10.7L11.5 17L10.7 10.7L4 9.5L10.7 8.3L11.5 2Z" />
-                          <path d="M17.5 14C17.5 14 17.9 17.15 17.9 17.15L21.25 17.75L17.9 18.35L17.5 21.5L17.1 18.35L13.75 17.75L17.1 17.15L17.5 14Z" />
-                        </svg>
-                      </div>
-                      
-                      {/* Customize Button */}
-                      <button
-                        onClick={() => setShowRightPane(!showRightPane)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-gray-50 border border-zinc-200/60 text-[10px] font-bold text-gray-500 hover:text-brand-forest transition-all shadow-2xs cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="4" y1="21" x2="4" y2="14" fill="none" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="4" y1="10" x2="4" y2="3" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="12" y1="21" x2="12" y2="12" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="12" y1="8" x2="12" y2="3" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="20" y1="21" x2="20" y2="16" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="20" y1="12" x2="20" y2="3" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="1" y1="14" x2="7" y2="14" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="9" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="2.5" />
-                          <line x1="17" y1="16" x2="23" y2="16" stroke="currentColor" strokeWidth="2.5" />
-                        </svg>
-                        <span>Customize</span>
-                      </button>
-                    </div>
+              </div>
 
-                    <div className="space-y-2">
-                      <h2 className="font-extrabold text-lg sm:text-xl text-brand-forest tracking-tight leading-tight">
-                        {docTitle}
-                      </h2>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                        <span>1 source</span>
-                        <span>•</span>
-                        <span>{new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              {/* TAB: PDF */}
+              <div className={`flex-1 flex flex-col min-h-0 w-full h-full ${centerTab === 'pdf' ? 'animate-in fade-in duration-200' : 'hidden'}`}>
+                <PDFWorkspace
+                  documentId={documentId}
+                  onExplainSelection={handleExplainSelection}
+                  onExplainPage={handleExplainPage}
+                  onGenerateQuizPage={handleGenerateQuizPage}
+                  onGenerateFlashcardsPage={handleGenerateFlashcardsPage}
+                  onClose={() => setCenterTab('chat')}
+                  isActive={centerTab === 'pdf'}
+                />
+              </div>
+
+              {/* TAB: Chat */}
+              <div className={`flex-1 flex flex-row min-h-0 w-full ${centerTab === 'chat' ? 'flex animate-in fade-in duration-200' : 'hidden'}`}>
+                
+                {/* Main Chat log & input wrapper */}
+                <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-white">
+                  <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6">
+                    <div className="max-w-2xl mx-auto w-full space-y-6">
+
+                  {/* Document cover card */}
+                  {!hasChatted && (
+                    <div className="bg-zinc-50 border border-zinc-200 rounded-3xl p-6 text-left relative overflow-hidden mb-6 group transition-all hover:bg-zinc-100/60">
+                      <div className="absolute -right-4 -bottom-4 w-28 h-28 bg-white/20 rounded-full blur-xl pointer-events-none" />
+                      <div className="flex items-center justify-between mb-5">
+                        <div className="w-10 h-10 rounded-2xl bg-white text-amber-500 flex items-center justify-center shadow-2xs border border-zinc-200/30">
+                          <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                            <path d="M11.5 2C11.5 2 12.3 8.3 12.3 8.3L19 9.5L12.3 10.7L11.5 17L10.7 10.7L4 9.5L10.7 8.3L11.5 2Z" />
+                            <path d="M17.5 14C17.5 14 17.9 17.15 17.9 17.15L21.25 17.75L17.9 18.35L17.5 21.5L17.1 18.35L13.75 17.75L17.1 17.15L17.5 14Z" />
+                          </svg>
+                        </div>
                       </div>
-                      {docSummary && (
-                        <p className="text-xs text-gray-500 font-normal leading-relaxed pt-3 border-t border-zinc-200/40 mt-3">
-                          {docSummary}
-                        </p>
+                      <div className="space-y-2">
+                        <h2 className="font-extrabold text-lg sm:text-xl text-brand-forest tracking-tight leading-tight font-sans">{docTitle}</h2>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                          <span>1 source</span>
+                          <span>•</span>
+                          <span>{new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                        {docSummary && (
+                          <p className="text-xs text-gray-500 font-normal leading-relaxed pt-3 border-t border-zinc-200/40 mt-3 font-sans">{docSummary}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Processing state */}
+                  {isProcessingDoc && (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-6 animate-in fade-in duration-300">
+                      <div className="relative w-16 h-16 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full border-4 border-gray-100 border-t-brand-green animate-spin" />
+                        <Brain className="w-6 h-6 text-brand-green animate-pulse" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="font-extrabold text-brand-forest text-sm sm:text-base font-sans">Preparing your Study Workspace</h3>
+                        <p className="text-xs text-gray-400 font-medium max-w-sm leading-relaxed font-sans">We are ingestion-mapping your document. This workspace will activate automatically.</p>
+                      </div>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-100 rounded-full shadow-2xs">
+                        <div className="w-2 h-2 rounded-full bg-brand-green animate-ping" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-brand-forest font-sans">{processingStage}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Welcome card */}
+                  {!hasChatted && !isProcessingDoc && (
+                    <div className="max-w-2xl bg-gray-50/80 border border-gray-100 rounded-3xl p-6 text-left space-y-4 animate-in fade-in duration-300">
+                      <h3 className="font-bold text-sm text-brand-forest font-sans">Welcome to your Study Space</h3>
+                      <p className="text-xs text-gray-500 leading-relaxed font-normal font-sans">
+                        Chat with the AI tutor, view your PDF, or explore the Concept Map — all accessible from the left rail.
+                      </p>
+                      {topics && topics.length > 0 && (
+                        <div className="pt-4 border-t border-gray-200/50 space-y-3">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60 block font-sans">
+                            Start with a key concept
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {topics.slice(0, 6).map((topic, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => handleConceptClick(topic)}
+                                className="px-3.5 py-2 rounded-xl bg-brand-yellow/10 hover:bg-brand-yellow/20 border border-brand-yellow/20 hover:border-brand-yellow/30 text-xs font-bold text-brand-forest hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer shadow-3xs font-sans"
+                              >
+                                🔍 Explain {topic}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
-                )}
-                
-                {/* Tour explainer card */}
-                {!hasChatted && (
-                  <div className="max-w-2xl bg-gray-50/80 border border-gray-100 rounded-3xl p-6 text-left space-y-4 animate-in fade-in duration-300">
-                    <h3 className="font-bold text-sm text-brand-forest">
-                      Welcome to your Study Space
-                    </h3>
-                    <p className="text-xs text-gray-500 leading-relaxed font-normal">
-                      This space is here to help you study and understand your notes. Click key concepts on the left to review them, chat with the AI tutor in the middle, and generate tests or save custom notes on the right panel.
-                    </p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green block">
-                          Left: Concepts
-                        </span>
-                        <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
-                          Click on key topics in the left sidebar to get explanations.
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green block">
-                          Center: Chat
-                        </span>
-                        <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
-                          Ask questions, request analogies, and discuss notes interactively.
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-green block">
-                          Right: Studio & Notes
-                        </span>
-                        <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
-                          Generate practice quizzes, flashcard flip decks, and save notes.
-                        </p>
-                      </div>
-                    </div>
+                  )}
 
-                    {topics && topics.length > 0 && (
-                      <div className="pt-5 border-t border-gray-200/50 space-y-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-forest/60 block">
-                          Suggested: Ask about a key concept from your notes
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {topics.slice(0, 6).map((topic, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => handleConceptClick(topic)}
-                              className="px-3.5 py-2 rounded-xl bg-brand-yellow/10 hover:bg-brand-yellow/20 border border-brand-yellow/20 hover:border-brand-yellow/30 text-xs font-bold text-brand-forest hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer shadow-3xs"
-                            >
-                              🔍 Explain {topic}
-                            </button>
+                  {/* Message log */}
+                  {messages.map((msg, index) => (
+                    <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                      {msg.role === 'system' ? (
+                        <div className="bg-gray-50 text-[11px] font-bold tracking-wide uppercase text-gray-400 px-4 py-1.5 rounded-full border border-gray-100 text-center mx-auto select-none font-sans">
+                          {msg.content}
+                        </div>
+                      ) : msg.role === 'user' ? (
+                        <div className="max-w-[75%] break-words rounded-3xl px-5 py-3.5 text-[14px] sm:text-[15px] font-medium leading-relaxed bg-zinc-100 text-brand-charcoal border border-zinc-200/40 shadow-2xs font-sans">
+                          {msg.content.split('\n').map((line, idx) => (
+                            <p key={idx} className={idx > 0 ? 'mt-1.5' : ''}>{line}</p>
                           ))}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Message Log */}
-                {messages.map((msg, index) => (
-                  <div 
-                    key={index} 
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}
-                  >
-                    {msg.role === 'system' ? (
-                      <div className="bg-gray-50 text-[11px] font-bold tracking-wide uppercase text-gray-400 px-4 py-1.5 rounded-full border border-gray-100 text-center mx-auto select-none">
-                        {msg.content}
-                      </div>
-                    ) : msg.role === 'user' ? (
-                      <div className="max-w-[75%] rounded-3xl px-5 py-3.5 text-[14px] sm:text-[15px] font-medium leading-relaxed bg-[#E9EEF6] text-brand-forest shadow-2xs border border-[#E9EEF6]/5">
-                        {msg.content.split('\n').map((line, idx) => (
-                          <p key={idx} className={idx > 0 ? 'mt-1.5' : ''}>
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="w-full text-brand-forest py-2.5 text-sm text-left transition-all">
-                        <MarkdownRenderer content={msg.content} />
-
-                        {msg.inlineQuiz && (
-                          <div className="mt-4 p-5 bg-[#F0F4F9]/60 border border-zinc-200/50 rounded-2xl space-y-4 max-w-xl animate-in fade-in duration-200">
-                            <h4 className="font-bold text-xs text-brand-forest uppercase tracking-wider flex items-center gap-1.5">
-                              <Brain className="w-3.5 h-3.5 text-brand-green animate-pulse" />
-                              <span>Concept Check-In</span>
-                            </h4>
-                            <p className="text-xs font-semibold text-brand-forest leading-relaxed">
-                              {msg.inlineQuiz.question}
-                            </p>
-                            
-                            <div className="grid grid-cols-1 gap-2">
-                              {msg.inlineQuiz!.options.map((option: string, optionIdx: number) => {
-                                const selected = inlineQuizAnswers[index] === option;
-                                const answered = inlineQuizAnswers[index] !== undefined;
-                                const isCorrect = isAnswerMatch(option, msg.inlineQuiz!.answer, msg.inlineQuiz!.options, optionIdx);
-                                
-                                let btnStyle = "bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-700";
-                                if (answered) {
-                                  if (isCorrect) {
-                                    btnStyle = "bg-green-50 border-green-500 text-green-700 font-bold";
-                                  } else if (selected) {
-                                    btnStyle = "bg-rose-50 border-rose-500 text-rose-700 font-bold";
-                                  } else {
-                                    btnStyle = "bg-white border-zinc-200 text-zinc-400 opacity-60";
-                                  }
-                                }
-
-                                return (
-                                  <button
-                                    key={option}
-                                    type="button"
-                                    disabled={answered}
-                                    onClick={() => {
-                                      setInlineQuizAnswers(prev => ({ ...prev, [index]: option }));
-                                    }}
-                                    className={`w-full text-left px-4 py-2.5 rounded-xl border text-xs transition-all flex items-center justify-between ${btnStyle}`}
-                                  >
-                                    <span>{option}</span>
-                                    {answered && isCorrect && (
-                                      <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[10px]">✓</span>
-                                    )}
-                                    {answered && selected && !isCorrect && (
-                                      <span className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px]">✗</span>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {inlineQuizAnswers[index] !== undefined && (
-                              <div className="p-3.5 bg-white border border-zinc-200 rounded-xl space-y-1 animate-in fade-in slide-in-from-bottom-1 duration-200 text-left">
-                                {(() => {
-                                  const selectedOption = inlineQuizAnswers[index];
-                                  const selectedOptionIdx = msg.inlineQuiz!.options.indexOf(selectedOption);
-                                  const isSelectedCorrect = isAnswerMatch(selectedOption, msg.inlineQuiz!.answer, msg.inlineQuiz!.options, selectedOptionIdx);
-                                  return (
-                                    <>
-                                      <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                                        isSelectedCorrect ? 'text-green-600' : 'text-rose-600'
-                                      }`}>
-                                        {isSelectedCorrect ? 'Correct!' : 'Incorrect'}
-                                      </span>
-                                      <p className="text-xs text-gray-500 leading-relaxed font-normal">
-                                        {msg.inlineQuiz.explanation}
-                                      </p>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Streaming Chunk Output parsed as Markdown */}
-                {isStreaming && streamingContent && (
-                  <div className="flex justify-start w-full">
-                    <div className="w-full text-brand-forest py-4 text-sm text-left">
-                      {/* Identity Badge */}
-                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-200/45">
-                        <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
-                          <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                        </div>
-                        <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider">
-                          Braudle Tutor
-                        </span>
-                      </div>
-                      
-                      {streamingContent.trim().startsWith('{') ? (
-                        <div className="flex items-center gap-2 p-3.5 bg-gray-50 border border-gray-150 rounded-2xl w-fit shadow-2xs">
-                          <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 border-t-brand-green animate-spin" />
-                          <span className="text-xs text-brand-forest/65 font-bold">Structuring new study deck...</span>
-                        </div>
                       ) : (
-                        <MarkdownRenderer content={streamingContent} />
+                        <div className="w-full break-words overflow-hidden min-w-0 text-brand-forest py-2.5 text-sm text-left transition-all">
+                          <MarkdownRenderer content={msg.content} />
+                          {msg.inlineQuiz && (
+                            <div className="mt-4 p-5 bg-[#F0F4F9]/60 border border-zinc-200/50 rounded-2xl space-y-4 max-w-xl animate-in fade-in duration-200">
+                              <h4 className="font-bold text-xs text-brand-forest uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                                <Brain className="w-3.5 h-3.5 text-brand-green animate-pulse" />
+                                <span>Concept Check-In</span>
+                              </h4>
+                              <p className="text-xs font-semibold text-brand-forest leading-relaxed font-sans">{msg.inlineQuiz.question}</p>
+                              <div className="grid grid-cols-1 gap-2">
+                                {msg.inlineQuiz!.options.map((option: string, optionIdx: number) => {
+                                  const selected = inlineQuizAnswers[index] === option;
+                                  const answered = inlineQuizAnswers[index] !== undefined;
+                                  const isCorrect = isAnswerMatch(option, msg.inlineQuiz!.answer, msg.inlineQuiz!.options, optionIdx);
+                                  let btnStyle = 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-700';
+                                  if (answered) {
+                                    if (isCorrect) btnStyle = 'bg-green-50 border-green-500 text-green-700 font-bold';
+                                    else if (selected) btnStyle = 'bg-rose-50 border-rose-500 text-rose-700 font-bold';
+                                    else btnStyle = 'bg-white border-zinc-200 text-zinc-400 opacity-60';
+                                  }
+                                  return (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      disabled={answered}
+                                      onClick={() => setInlineQuizAnswers(prev => ({ ...prev, [index]: option }))}
+                                      className={`w-full text-left px-4 py-2.5 rounded-xl border text-xs transition-all flex items-center justify-between font-sans ${btnStyle}`}
+                                    >
+                                      <span>{option}</span>
+                                      {answered && isCorrect && <span className="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[10px]">✓</span>}
+                                      {answered && selected && !isCorrect && <span className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px]">✗</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {inlineQuizAnswers[index] !== undefined && (
+                                <div className="p-3.5 bg-white border border-zinc-200 rounded-xl space-y-1 animate-in fade-in slide-in-from-bottom-1 duration-200 text-left">
+                                  {(() => {
+                                    const selectedOption = inlineQuizAnswers[index];
+                                    const selectedOptionIdx = msg.inlineQuiz!.options.indexOf(selectedOption);
+                                    const isSelectedCorrect = isAnswerMatch(selectedOption, msg.inlineQuiz!.answer, msg.inlineQuiz!.options, selectedOptionIdx);
+                                    return (
+                                      <>
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider font-sans ${isSelectedCorrect ? 'text-green-600' : 'text-rose-600'}`}>
+                                          {isSelectedCorrect ? 'Correct!' : 'Incorrect'}
+                                        </span>
+                                        <p className="text-xs text-gray-500 leading-relaxed font-normal font-sans">{msg.inlineQuiz.explanation}</p>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  ))}
 
-                {/* Loading indicator */}
-                {isStreaming && !streamingContent && (
-                  <div className="flex justify-start w-full">
-                    <div className="w-full text-brand-forest py-4 text-sm text-left">
-                      {/* Identity Badge */}
-                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-200/45">
-                        <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
-                          <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                  {/* Streaming output */}
+                  {isStreaming && streamingContent && (
+                    <div className="flex justify-start w-full">
+                      <div className="w-full text-brand-forest py-4 text-sm text-left">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-200/45">
+                          <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
+                            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                          </div>
+                          <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider font-sans">Braudle Tutor</span>
                         </div>
-                        <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider">
-                          Braudle Tutor
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 p-3 bg-gray-50/50 border border-gray-100 rounded-2xl w-fit">
-                        <div className="flex gap-1.5 items-center">
-                          <span className="w-2 h-2 rounded-full bg-brand-green animate-bounce" />
-                          <span className="w-2 h-2 rounded-full bg-brand-green animate-bounce [animation-delay:0.2s]" />
-                          <span className="w-2 h-2 rounded-full bg-brand-green animate-bounce [animation-delay:0.4s]" />
-                        </div>
-                        <span className="text-xs text-brand-forest/60 font-semibold pl-1">Braudle Tutor is thinking...</span>
+                        {streamingContent.trim().startsWith('{') ? (
+                          <div className="flex items-center gap-2 p-3.5 bg-gray-50 border border-gray-150 rounded-2xl w-fit shadow-2xs">
+                            <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-200 border-t-brand-green animate-spin" />
+                            <span className="text-xs text-brand-forest/65 font-bold font-sans">Structuring new study deck...</span>
+                          </div>
+                        ) : (
+                          <MarkdownRenderer content={streamingContent} />
+                        )}
                       </div>
                     </div>
+                  )}
+
+                  {/* Loading dots */}
+                  {isStreaming && !streamingContent && (
+                    <div className="flex justify-start w-full">
+                      <div className="w-full text-brand-forest py-4 text-sm text-left">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-200/45">
+                          <div className="w-6 h-6 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
+                            <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                          </div>
+                          <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider font-sans">Braudle Tutor</span>
+                        </div>
+                        <div className="flex items-center gap-2 p-3 bg-gray-50/50 border border-gray-100 rounded-2xl w-fit">
+                          <div className="flex gap-1.5 items-center">
+                            <span className="w-2 h-2 rounded-full bg-brand-green animate-bounce" />
+                            <span className="w-2 h-2 rounded-full bg-brand-green animate-bounce [animation-delay:0.2s]" />
+                            <span className="w-2 h-2 rounded-full bg-brand-green animate-bounce [animation-delay:0.4s]" />
+                          </div>
+                          <span className="text-xs text-brand-forest/60 font-semibold pl-1 font-sans">Braudle Tutor is thinking...</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                      <div className="chat-end-ref" ref={chatEndRef} />
+                    </div> {/* Closes max-w-2xl messages wrapper */}
                   </div>
-                )}
 
-                <div className="chat-end-ref" ref={chatEndRef} />
-              </div>
-            )}
+                {/* Input area */}
+                {!isProcessingDoc && (
+                  <div className="p-4 sm:pb-6 sm:pt-2 shrink-0 bg-white w-full max-w-full min-w-0 overflow-hidden">
+                    <div className="max-w-2xl mx-auto w-full space-y-3.5">
 
-              {centerTab === 'chat' && !isProcessingDoc && (
-                <div className="border-t border-gray-100 p-4 sm:p-6 space-y-3 sm:space-y-4">
-                
-                 {/* Floating suggestion pills */}
-                 {!isStreaming && !isProcessingDoc && (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none text-left w-full">
-                      {[
-                        ...(activeSuggestions && activeSuggestions.length > 0
-                          ? activeSuggestions.map((suggestionText, idx) => ({ id: `dyn-${idx}`, label: suggestionText }))
-                          : (topics && topics.length > 0
-                              ? topics.slice(0, 3).map((t, idx) => ({ id: `concept-${idx}`, label: `🔍 Explain ${t}` }))
+                    {/* Suggestion pills */}
+                    {!isStreaming && (
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full min-w-0">
+                        {[
+                          ...(activeSuggestions && activeSuggestions.length > 0
+                            ? activeSuggestions.map((s, idx) => ({ id: `dyn-${idx}`, label: s }))
+                            : topics && topics.length > 0
+                              ? topics.slice(0, 3).map((t, idx) => ({ id: `concept-${idx}`, label: `ðŸ” Explain ${t}` }))
                               : []
-                            )
-                        ),
-                        { id: 'analogy', label: '💡 Give an Analogy' },
-                        { id: 'explain', label: '📖 Explain Core Idea' },
-                        { id: 'practice', label: '✍️ Practice Quiz' },
-                        { id: 'exam', label: '🎯 Exam Prep' },
-                        { id: 'flashcards', label: '🎴 Flashcard Deck' }
-                      ].map((pill) => (
-                        <button
-                          key={pill.id}
-                          type="button"
-                          onClick={() => {
-                            if (pill.id.startsWith('dyn-')) {
-                              setInput(pill.label);
-                              setTimeout(() => {
-                                const sendBtn = document.getElementById('chat-send-btn');
-                                sendBtn?.click();
-                              }, 50);
-                            } else if (pill.id.startsWith('concept-')) {
-                              const cleanLabel = pill.label.replace(/^🔍 Explain /, '');
-                              handleConceptClick(cleanLabel);
-                            } else {
-                              if (pill.id === 'explain') {
+                          ),
+                          { id: 'analogy', label: 'ðŸ’¡ Give an Analogy' },
+                          { id: 'explain', label: 'ðŸ“– Explain Core Idea' },
+                          { id: 'practice', label: 'âœï¸ Practice Quiz' },
+                          { id: 'exam', label: 'ðŸŽ¯ Exam Prep' },
+                          { id: 'flashcards', label: 'ðŸŽ´ Flashcard Deck' },
+                        ].map((pill) => (
+                          <button
+                            key={pill.id}
+                            type="button"
+                            onClick={() => {
+                              if (pill.id.startsWith('dyn-')) {
+                                setInput(pill.label);
+                                setTimeout(() => document.getElementById('chat-send-btn')?.click(), 50);
+                              } else if (pill.id.startsWith('concept-')) {
+                                handleConceptClick(pill.label.replace(/^ðŸ” Explain /, ''));
+                              } else if (pill.id === 'explain') {
                                 setInput('Explain the core idea of this section in simple terms.');
                               } else if (pill.id === 'analogy') {
                                 setInput('Give me a simple, real-world analogy to understand this.');
                               } else if (pill.id === 'practice') {
-                                setIsExamSession(false);
-                                setQuiz(null);
-                                setQuizResult(null);
-                                setRightPanelTab('quiz');
-                                setActiveMobileTab('studio');
-                                setShowRightPane(true);
+                                setIsExamSession(false); setQuiz(null); setQuizResult(null);
+                                handleDrawerChange('quiz');
                               } else if (pill.id === 'exam') {
-                                setIsExamSession(true);
-                                setQuiz(null);
-                                setQuizResult(null);
-                                setRightPanelTab('quiz');
-                                setActiveMobileTab('studio');
-                                setShowRightPane(true);
+                                setIsExamSession(true); setQuiz(null); setQuizResult(null);
+                                handleDrawerChange('quiz');
                               } else if (pill.id === 'flashcards') {
-                                setRightPanelTab('flashcards');
-                                setActiveMobileTab('studio');
-                                setShowRightPane(true);
-                              }
-                            }
-                          }}
-                          className="px-3.5 py-1.5 rounded-full border border-zinc-200 text-xs font-bold text-zinc-600 bg-white hover:bg-zinc-50 hover:text-brand-forest transition-all cursor-pointer whitespace-nowrap active:scale-[0.98]"
-                        >
-                          {pill.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                {/* Active Session Error Banner */}
-                {activeSessionError && (
-                  <div className="relative overflow-hidden rounded-2xl border border-rose-200 bg-rose-50/70 p-4 animate-in slide-in-from-bottom-2 duration-200">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                        <AlertCircle className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="text-xs font-bold text-rose-800 leading-snug">
-                          {activeSessionError.message}
-                        </p>
-                        {activeSessionError.errorId && (
-                          <span className="text-[9px] text-rose-600/70 font-semibold block mt-1">
-                            Error ID: {activeSessionError.errorId}
-                          </span>
-                        )}
-                        
-                        <div className="flex gap-2.5 mt-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (lastSentMessage) {
-                                triggerTutorStream(lastSentMessage);
+                                handleDrawerChange('flashcards');
                               }
                             }}
-                            className="px-3.5 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-[10px] font-extrabold shadow-3xs cursor-pointer select-none active:scale-[0.98] transition-all"
+                            className="px-3.5 py-1.5 rounded-full border border-zinc-200 text-xs font-bold text-zinc-600 bg-white hover:bg-zinc-50 hover:text-brand-forest transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] font-sans"
                           >
-                            Retry
+                            {pill.label}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setActiveSessionError(null)}
-                            className="px-3.5 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-800 rounded-lg text-[10px] font-extrabold cursor-pointer select-none active:scale-[0.98] transition-all"
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Token Limit Lock Banner — shown when 429 hits */}
-                {isTokenLimited ? (
-                  <div className="relative overflow-hidden rounded-2xl border border-brand-green/20 bg-gradient-to-br from-brand-forest/5 via-brand-green/8 to-brand-lime/10 shadow-lg">
-                    {/* Brand accent line at top */}
-                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-brand-green via-brand-lime to-brand-green" />
-                    <div className="px-5 py-4 flex flex-col items-center gap-3 text-center">
-                      {/* Lock icon in brand circle */}
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand-green to-brand-forest shadow-lg shadow-brand-green/20 flex items-center justify-center">
-                        <Lock className="w-5 h-5 text-brand-lime stroke-[2.5px]" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-brand-forest leading-snug">You&apos;ve reached your study limit</p>
-                        <p className="text-xs text-brand-forest/60 mt-0.5 leading-relaxed">
-                          Your AI study time resets in 6 hours{tokenResetTime ? ` (around ${tokenResetTime})` : ''}.
-                        </p>
-                      </div>
-                      {/* Disabled ghost input to show locked state */}
-                      <div className="w-full flex items-center gap-3 bg-white/50 border border-brand-green/20 rounded-full px-4 py-2.5 cursor-not-allowed opacity-70">
-                        <Lock className="w-3.5 h-3.5 text-brand-green/50 shrink-0" />
-                        <span className="flex-1 text-xs text-brand-forest/40 font-medium text-left">Chat is locked until your limit resets&hellip;</span>
-                      </div>
-                      {/* Upgrade CTA */}
-                      <a
-                        href="/settings/billing"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-green text-brand-lime text-xs font-bold shadow-md shadow-brand-green/20 hover:bg-brand-forest hover:shadow-brand-forest/30 hover:scale-[1.02] transition-all active:scale-[0.98]"
-                      >
-                        <Zap className="w-3.5 h-3.5 fill-brand-lime" />
-                        Upgrade for more study time
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                {/* Centered pill-shaped Prompt Input exactly like NotebookLM */}
-                <form onSubmit={handleSendMessageWrapper} className={`relative flex items-center border rounded-full px-4.5 py-2.5 sm:px-5 sm:py-3 transition-all gap-3.5 shadow-2xs ${
-                  isProcessingDoc 
-                    ? 'bg-gray-100/50 border-gray-150 cursor-not-allowed opacity-60' 
-                    : 'bg-white border-gray-250 focus-within:border-brand-green focus-within:ring-1 focus-within:ring-brand-green'
-                }`}>
-                  <input
-                    type="text"
-                    required
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder={isProcessingDoc ? "Tutor is warming up..." : "Start typing..."}
-                    className="flex-1 bg-transparent border-none text-base sm:text-xs text-brand-forest focus:outline-none placeholder-gray-400/90 font-medium py-1 disabled:cursor-not-allowed"
-                    disabled={isStreaming || isProcessingDoc}
-                  />
-                  <div className="flex items-center gap-3 shrink-0 select-none">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-55 border border-gray-200 text-gray-500 text-[10px] font-bold select-none cursor-default shrink-0">
-                      <FileText className="w-3.5 h-3.5 text-gray-400" />
-                      <span>(1)</span>
-                    </div>
-                    <button
-                      id="chat-send-btn"
-                      type="submit"
-                      disabled={isStreaming || isProcessingDoc || !input.trim()}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
-                        !input.trim() || isStreaming || isProcessingDoc
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-80'
-                          : 'bg-brand-green text-white hover:bg-brand-green/90 active:scale-95 cursor-pointer shadow-xs'
-                      }`}
-                    >
-                      <ArrowRight className="w-4.5 h-4.5 stroke-[2.5px]" />
-                    </button>
-                  </div>
-                </form>
-                <p className="text-[10px] text-gray-400 font-semibold text-center mt-2.5 leading-none select-none">
-                  Braudle can be inaccurate; please double check its responses.
-                </p>
-                  </>
-                )}
-              </div>
-            )}
-
-            </section>
-
-            {/* PANEL 3: RIGHT PANEL (Studio / Study Modes & Notes) */}
-            {(showRightPane || activeMobileTab === 'studio') && (
-              <aside className={`bg-white p-6 flex flex-col justify-start overflow-y-auto lg:overflow-hidden shrink-0 z-30 text-left lg:rounded-3xl lg:border lg:border-zinc-200/50 lg:shadow-2xs transition-all duration-300 ease-in-out ${
-                activeMobileTab === 'studio' 
-                  ? 'flex flex-1 w-full' 
-                  : `hidden lg:flex lg:relative ${
-                      rightPanelTab === 'studio' 
-                        ? 'lg:w-92' 
-                        : isExpandedRightPane
-                          ? 'flex-1 w-full lg:max-w-none'
-                          : 'lg:w-[38vw] xl:w-[35vw] max-w-xl min-w-[350px]'
-                    } animate-in slide-in-from-right-4 duration-300`
-              }`}>
-                
-                {/* Header section with tab control */}
-                <div className="pb-4 border-b border-zinc-100 mb-5 shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      {rightPanelTab !== 'studio' && (
-                        <button
-                          onClick={() => {
-                            setRightPanelTab('studio');
-                            setIsExpandedRightPane(false);
-                          }}
-                          className="p-1 rounded-xl text-zinc-500 hover:text-brand-forest hover:bg-zinc-50 transition-all cursor-pointer"
-                        >
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="19" y1="12" x2="5" y2="12" />
-                            <polyline points="12 19 5 12 12 5" />
-                          </svg>
-                        </button>
-                      )}
-                      
-                      <div className="text-left">
-                        <span className="font-extrabold text-sm sm:text-base text-brand-forest block">
-                          {rightPanelTab === 'studio' 
-                            ? 'Braudle Modes' 
-                            : rightPanelTab === 'quiz' 
-                              ? (isExamSession ? 'Exam Simulation' : 'Practice Quiz') 
-                              : rightPanelTab === 'summary'
-                                ? 'PDF Study Summary'
-                                : 'Flashcard Deck'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {rightPanelTab !== 'studio' && (
-                        <button
-                          onClick={() => setIsExpandedRightPane(!isExpandedRightPane)}
-                          className="hidden lg:flex p-1.5 rounded-xl border border-gray-100 text-gray-400 hover:text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
-                          title={isExpandedRightPane ? "Collapse Panel" : "Expand Panel"}
-                        >
-                          {isExpandedRightPane ? (
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M4 14h6v6M20 10h-6V4" />
-                            </svg>
-                          ) : (
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => setShowRightPane(false)}
-                        className="p-1.5 rounded-xl border border-gray-100 text-gray-400 hover:text-brand-forest hover:bg-gray-50 transition-all cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* View 1 source pill under the title, matching NotebookLM exactly */}
-                  {rightPanelTab !== 'studio' && (
-                    <div className="mt-2.5 flex justify-start">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-zinc-200 text-[10px] font-bold text-gray-500 bg-white shadow-3xs">
-                        <FileText className="w-3 h-3 text-zinc-400" />
-                        <span>View 1 source</span>
-                      </span>
-                    </div>
-                  )}
-                  </div>
-
-                   {rightPanelTab === 'studio' && (
-                     <StudioPanel
-                       isProcessingDoc={isProcessingDoc}
-                       combinedItems={combinedItems}
-                       expandedGroups={expandedGroups}
-                       toggleGroup={toggleGroup}
-                       setSelectedNote={setSelectedNote}
-                       handleLoadSavedQuiz={handleLoadSavedQuiz}
-                       setSelectedFlashcardDeckId={setSelectedFlashcardDeckId}
-                       setCurrentFlashcardIdx={setCurrentFlashcardIdx}
-                       setIsFlipped={setIsFlipped}
-                       setRightPanelTab={setRightPanelTab}
-                       setActiveMobileTab={setActiveMobileTab}
-                       setShowRightPane={setShowRightPane}
-                       setIsAddNoteOpen={setIsAddNoteOpen}
-                       setIsExamSession={setIsExamSession}
-                       setQuiz={setQuiz}
-                       setQuizResult={setQuizResult}
-                       dueCount={dueCount}
-                       knowledgeCacheStatus={knowledgeCacheStatus}
-                     />
-                   )}
-
-                    {rightPanelTab === 'quiz' && (
-                      <div className="animate-in fade-in duration-200 lg:flex-1 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
-                       <PracticePanel 
-                          quiz={quiz}
-                          selectedAnswers={selectedAnswers}
-                          setSelectedAnswers={setSelectedAnswers}
-                          loadingQuiz={loadingQuiz}
-                          submittingQuiz={submittingQuiz}
-                          quizResult={quizResult}
-                          quizWeakTopics={quizWeakTopics}
-                          onClose={() => setRightPanelTab('studio')}
-                          onGenerateQuiz={handleGenerateQuiz}
-                          onSubmitQuiz={handleQuizSubmit}
-                          isEmbed={true}
-                          isExam={isExamSession}
-                          onGradeQuestion={handleGradeQuestion}
-                          onExplainQuestion={handleExplainQuizQuestion}
-                          onReviewWeakTopic={handleReviewWeakTopic}
-                          topics={topics}
-                        />
+                        ))}
                       </div>
                     )}
 
-                    {rightPanelTab === 'flashcards' && (
+                    {/* Error banner */}
+                    {activeSessionError && (
+                      <div className="relative overflow-hidden rounded-2xl border border-rose-200 bg-rose-50/70 p-4 animate-in slide-in-from-bottom-2 duration-200">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                            <AlertCircle className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-xs font-bold text-rose-800 leading-snug font-sans">{activeSessionError.message}</p>
+                            {activeSessionError.errorId && (
+                              <span className="text-[9px] text-rose-600/70 font-semibold block mt-1 font-sans">Error ID: {activeSessionError.errorId}</span>
+                            )}
+                            <div className="flex gap-2.5 mt-3">
+                              <button type="button" onClick={() => lastSentMessage && triggerTutorStream(lastSentMessage)} className="px-3.5 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-[10px] font-extrabold shadow-3xs cursor-pointer active:scale-[0.98] transition-all font-sans">Retry</button>
+                              <button type="button" onClick={() => setActiveSessionError(null)} className="px-3.5 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-rose-800 rounded-lg text-[10px] font-extrabold cursor-pointer active:scale-[0.98] transition-all font-sans">Dismiss</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Token limit lock */}
+                    {isTokenLimited ? (
+                      <div className="relative overflow-hidden rounded-2xl border border-brand-green/20 bg-gradient-to-br from-brand-forest/5 via-brand-green/8 to-brand-lime/10 shadow-lg">
+                        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-brand-green via-brand-lime to-brand-green" />
+                        <div className="px-5 py-4 flex flex-col items-center gap-3 text-center">
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand-green to-brand-forest shadow-lg shadow-brand-green/20 flex items-center justify-center">
+                            <Lock className="w-5 h-5 text-brand-lime stroke-[2.5px]" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-brand-forest leading-snug font-sans">You&apos;ve reached your study limit</p>
+                            <p className="text-xs text-brand-forest/60 mt-0.5 leading-relaxed font-sans">Your AI study time resets{tokenResetTime ? ` around ${tokenResetTime}` : ' soon'}.</p>
+                          </div>
+                          <div className="w-full flex items-center gap-3 bg-white/50 border border-brand-green/20 rounded-full px-4 py-2.5 cursor-not-allowed opacity-70">
+                            <Lock className="w-3.5 h-3.5 text-brand-green/50 shrink-0" />
+                            <span className="flex-1 text-xs text-brand-forest/40 font-medium text-left font-sans">Chat is locked until your limit resets&hellip;</span>
+                          </div>
+                          <a href="/settings/billing" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-green text-brand-lime text-xs font-bold shadow-md shadow-brand-green/20 hover:bg-brand-forest hover:scale-[1.02] transition-all active:scale-[0.98] font-sans">
+                            <Zap className="w-3.5 h-3.5 fill-brand-lime" />
+                            Upgrade for more study time
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Chat input form */}
+                        <form onSubmit={handleSendMessageWrapper} className={`relative flex items-center rounded-[24px] px-3.5 py-1.5 transition-all gap-3 shadow-2xs border ${isProcessingDoc ? 'bg-zinc-50 border-zinc-150 cursor-not-allowed opacity-60' : 'bg-zinc-55 border-zinc-200/80 focus-within:bg-white focus-within:border-brand-green focus-within:ring-1 focus-within:ring-brand-green/20'}`}>
+                          {/* Attachment Indicator on Left */}
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white border border-zinc-200/60 text-zinc-500 text-[10px] font-extrabold select-none cursor-default shrink-0 font-sans shadow-3xs">
+                            <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                            <span>(1)</span>
+                          </div>
+                          
+                          <input
+                            type="text"
+                            required
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder={isProcessingDoc ? 'Tutor is warming up...' : 'Ask anything about your notes...'}
+                            className="flex-1 w-full min-w-0 bg-transparent border-none text-sm text-brand-forest focus:outline-none placeholder-zinc-400 font-semibold py-1.5 disabled:cursor-not-allowed font-sans"
+                            disabled={isStreaming || isProcessingDoc}
+                          />
+                          
+                          <button
+                            id="chat-send-btn"
+                            type="submit"
+                            disabled={isStreaming || isProcessingDoc || !input.trim()}
+                            className={`w-8.5 h-8.5 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
+                              !input.trim() || isStreaming || isProcessingDoc
+                                ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed opacity-70'
+                                : 'bg-brand-green text-white hover:bg-brand-green/90 active:scale-95 cursor-pointer shadow-xs'
+                            }`}
+                          >
+                            <ArrowRight className="w-4 h-4 stroke-[2.5px]" />
+                          </button>
+                        </form>
+                        <p className="text-[9px] text-gray-400 font-bold text-center leading-none select-none font-sans">
+                          Braudle can be inaccurate; please double check its responses.
+                        </p>
+                      </>
+                    )}
+                    </div>
+                  </div>
+                )}
+                </div>
+
+                {/* Desktop concepts drawer */}
+                <div 
+                  className="hidden lg:block transition-all duration-300 ease-in-out border-l border-zinc-100 bg-white overflow-hidden shrink-0"
+                  style={{
+                    width: isConceptsOpen ? '256px' : '0px',
+                    opacity: isConceptsOpen ? 1 : 0,
+                    borderLeftWidth: isConceptsOpen ? '1px' : '0px',
+                  }}
+                >
+                  <LeftSidebar
+                    docTitle={docTitle}
+                    topics={topics}
+                    onConceptClick={handleConceptClick}
+                    className="w-64 h-full p-5 flex flex-col justify-between overflow-y-auto select-none text-left"
+                  />
+                </div>
+
+                {/* Mobile concepts drawer backdrop */}
+                <div 
+                  onClick={() => setIsConceptsOpen(false)}
+                  className={`lg:hidden fixed inset-0 bg-black/25 backdrop-blur-3xs z-40 transition-all duration-300 ${
+                    isConceptsOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                  }`}
+                />
+                
+                {/* Mobile concepts drawer panel */}
+                <div 
+                  className={`lg:hidden fixed inset-y-0 right-0 w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
+                    isConceptsOpen ? 'translate-x-0' : 'translate-x-full'
+                  }`}
+                >
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100 shrink-0">
+                    <span className="text-xs font-black uppercase tracking-wider text-brand-forest font-sans">Workspace Details</span>
+                    <button 
+                      onClick={() => setIsConceptsOpen(false)}
+                      className="p-1 rounded-lg text-gray-400 hover:text-brand-forest hover:bg-zinc-55 transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto min-h-0 bg-white">
+                    <LeftSidebar
+                      docTitle={docTitle}
+                      topics={topics}
+                      onConceptClick={(concept) => {
+                        handleConceptClick(concept);
+                        setIsConceptsOpen(false);
+                      }}
+                      className="w-full p-5 flex flex-col justify-between select-none text-left"
+                    />
+                  </div>
+                </div>
+              </div> {/* Closes TAB: Chat flex-row container */}
+
+              {/* TAB: Quiz */}
+              {centerTab === 'quiz' && (
+                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
+                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
+                    <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 h-full flex flex-col justify-between">
+                      <PracticePanel
+                        quiz={quiz}
+                        selectedAnswers={selectedAnswers}
+                        setSelectedAnswers={setSelectedAnswers}
+                        loadingQuiz={loadingQuiz}
+                        submittingQuiz={submittingQuiz}
+                        quizResult={quizResult}
+                        quizWeakTopics={quizWeakTopics}
+                        onClose={() => setCenterTab('chat')}
+                        onGenerateQuiz={handleGenerateQuiz}
+                        onSubmitQuiz={handleQuizSubmit}
+                        isEmbed={true}
+                        isExam={isExamSession}
+                        onGradeQuestion={handleGradeQuestion}
+                        onExplainQuestion={handleExplainQuizQuestion}
+                        onReviewWeakTopic={handleReviewWeakTopic}
+                        topics={topics}
+                        onSwitchTab={(tab) => { setCenterTab(tab); setIsMobileNavOpen(false); }}
+                        onExamModeChange={(isExam) => setIsExamSession(isExam)}
+                        setQuiz={setQuiz}
+                        sessionQuizzes={sessionQuizzes}
+                        docTitle={docTitle}
+                        onLoadSavedQuiz={handleLoadSavedQuiz}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: Flashcards */}
+              {centerTab === 'flashcards' && (
+                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
+                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
+                    <div className="max-w-xl mx-auto w-full px-4 sm:px-6">
                       <FlashcardsPanel
                         flashcards={flashcards}
                         flashcardCount={flashcardCount}
@@ -1538,50 +1445,70 @@ export default function SessionPage({ params }: SessionPageProps) {
                         setIsFlipped={setIsFlipped}
                         onRateCard={handleRateConcept}
                         onCreateNewDeck={() => setSelectedFlashcardDeckId('new')}
+                        parsedFlashcardDecks={parsedFlashcardDecks}
+                        selectedFlashcardDeckId={selectedFlashcardDeckId}
+                        onSelectDeck={setSelectedFlashcardDeckId}
+                        docTitle={docTitle}
                       />
-                    )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                   {rightPanelTab === 'summary' && (
-                     <SummaryPanel
-                       loadingSummary={loadingSummary}
-                       summaryError={summaryError}
-                       detailedSummary={detailedSummary}
-                       docTitle={docTitle}
-                       fetchDetailedSummary={fetchDetailedSummary}
-                     />
-                   )}
+              {/* TAB: Summary */}
+              {centerTab === 'summary' && (
+                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
+                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
+                    <div className="max-w-3xl mx-auto w-full px-4 sm:px-6">
+                      <SummaryPanel
+                        loadingSummary={loadingSummary}
+                        summaryError={summaryError}
+                        detailedSummary={detailedSummary}
+                        docTitle={docTitle}
+                        fetchDetailedSummary={fetchDetailedSummary}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              </aside>
-            )}
+              {/* TAB: Concepts */}
+              {centerTab === 'concepts' && (
+                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
+                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
+                    <div className="max-w-4xl mx-auto w-full px-4 sm:px-6">
+                      <StudioPanel
+                        isProcessingDoc={isProcessingDoc}
+                        combinedItems={combinedItems}
+                        expandedGroups={expandedGroups}
+                        toggleGroup={toggleGroup}
+                        setSelectedNote={setSelectedNote}
+                        handleLoadSavedQuiz={handleLoadSavedQuiz}
+                        setSelectedFlashcardDeckId={setSelectedFlashcardDeckId}
+                        setCurrentFlashcardIdx={setCurrentFlashcardIdx}
+                        setIsFlipped={setIsFlipped}
+                        setRightPanelTab={setRightPanelTab}
+                        setActiveMobileTab={setActiveMobileTab}
+                        setShowRightPane={setShowRightPane}
+                        setIsAddNoteOpen={setIsAddNoteOpen}
+                        setIsExamSession={setIsExamSession}
+                        setQuiz={setQuiz}
+                        setQuizResult={setQuizResult}
+                        dueCount={dueCount}
+                        knowledgeCacheStatus={knowledgeCacheStatus}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>{/* end main content area */}
 
-            {/* Mobile Practice test FAB */}
-            {!showRightPane && (
-              <button
-                onClick={() => {
-                  setShowRightPane(true);
-                }}
-                className="lg:hidden fixed bottom-24 right-6 p-4 rounded-full bg-brand-green text-white shadow-xl hover:scale-105 active:scale-95 transition-all z-40 cursor-pointer"
-                title="Practice questions"
-              >
-                <Award className="w-5 h-5" />
-              </button>
-            )}
-
-          </div>
-        </div>
-      )}
-
-        {/* ══════════════ MODALS ══════════════ */}
-
-        {/* Add Note Modal */}
+        {/* â”€â”€ MODALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {isAddNoteOpen && (
-          <AddNoteModal
-            onClose={() => setIsAddNoteOpen(false)}
-            onSave={handleSaveNewNote}
-          />
+          <AddNoteModal onClose={() => setIsAddNoteOpen(false)} onSave={handleSaveNewNote} />
         )}
-
-        {/* View/Edit Note Modal */}
         {selectedNote && (
           <EditNoteModal
             note={selectedNote}

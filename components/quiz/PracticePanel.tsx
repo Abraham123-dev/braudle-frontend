@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertCircle, FileQuestion, Loader2, Clock, BookOpen, RotateCcw, MessageCircle, X } from 'lucide-react';
+import { AlertCircle, FileQuestion, Loader2, Clock, BookOpen, RotateCcw, MessageCircle, X, User, ArrowLeft } from 'lucide-react';
 import { Quiz, Question, WeakTopic } from '@/hooks/useSession';
 import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
 import { useStore } from '@/lib/store';
@@ -94,6 +94,13 @@ interface PracticePanelProps {
   onExplainQuestion?: (question: any, studentAnswer: string, correctAnswer: string) => void;
   onReviewWeakTopic?: (topic: string) => void;
   topics?: string[];
+  // Extra props
+  onSwitchTab?: (tab: 'map' | 'quiz' | 'summary' | 'flashcards' | 'chat' | 'pdf' | 'concepts') => void;
+  onExamModeChange?: (isExam: boolean) => void;
+  setQuiz?: (quiz: Quiz | null) => void;
+  sessionQuizzes?: Quiz[];
+  docTitle?: string;
+  onLoadSavedQuiz?: (quiz: Quiz) => void;
 }
 
 /* ─── Component ───────────────────────────────────────────────── */
@@ -115,8 +122,16 @@ export default function PracticePanel({
   onExplainQuestion,
   onReviewWeakTopic,
   topics = [],
+  // Extra props
+  onSwitchTab,
+  onExamModeChange,
+  setQuiz,
+  sessionQuizzes = [],
+  docTitle = 'Document',
+  onLoadSavedQuiz,
 }: PracticePanelProps) {
   const user = useStore((state) => state.user);
+  const [showConfigForm, setShowConfigForm] = useState(false);
 
   /* ── Setup form ── */
   const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>('mixed');
@@ -129,6 +144,18 @@ export default function PracticePanel({
   const [examCountType, setExamCountType] = useState<'10' | '20' | '30' | 'custom'>('10');
   const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
   const [conceptFocus, setConceptFocus] = useState<string>('');
+
+  const isCurrentQuizTypeActive = quiz && (!!quiz.isExam === !!isExam);
+
+  useEffect(() => {
+    if (isExam) {
+      setIsTimed(true);
+      setRevealStyle('end');
+    } else {
+      setIsTimed(false);
+      setRevealStyle('instant');
+    }
+  }, [isExam, showConfigForm]);
 
   useEffect(() => {
     setLimitError(null);
@@ -382,21 +409,211 @@ export default function PracticePanel({
     );
   };
 
+  const currentQuizzes = sessionQuizzes.filter(q => isExam ? q.isExam : !q.isExam);
+
+  const renderToolsListOrCard = () => {
+    if (currentQuizzes.length === 0) {
+      // Show premium "Generate" card
+      return (
+        <div className="flex-grow flex flex-col justify-center gap-6 py-4 animate-in fade-in duration-300">
+          <div className="text-left space-y-2 select-none">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-green/5 border border-brand-green/10 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-brand-green">
+                {isExam ? 'Exam Simulator' : 'Study Arena'}
+              </span>
+            </div>
+            <h3 className="font-extrabold text-2xl text-brand-forest tracking-tight leading-tight">
+              {isExam ? 'Exam Simulation' : 'Practice Quiz'}
+            </h3>
+            <p className="text-xs text-zinc-400 font-medium leading-relaxed font-sans">
+              {isExam 
+                ? 'Test your knowledge under strict timed exam constraints with custom limit settings.'
+                : 'Assess your understanding with interactive, Socratic questions and instant tutor feedback.'
+              }
+            </p>
+          </div>
+
+          <div
+            onClick={() => setShowConfigForm(true)}
+            className="group relative bg-[#FCFDF9] border border-zinc-200/60 hover:border-brand-green/30 rounded-3xl p-6 text-left cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] flex flex-col justify-between min-h-[180px] shadow-2xs"
+          >
+            <div className="flex items-start gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${isExam ? 'bg-brand-forest/10 text-brand-forest' : 'bg-brand-green/10 text-brand-green'}`}>
+                {isExam ? <Clock className="w-5 h-5" /> : <FileQuestion className="w-5 h-5" />}
+              </div>
+              <div className="flex-grow min-w-0">
+                <h4 className="font-extrabold text-base text-brand-forest group-hover:text-brand-green transition-colors font-sans">
+                  {isExam ? 'Generate your exam prep' : 'Generate a practice quiz'}
+                </h4>
+                <p className="text-xs text-zinc-400 font-normal leading-relaxed mt-1.5 font-sans">
+                  {isExam 
+                    ? 'Do you want to study for an exam? Create a timed mock test aligned strictly with your note sections.'
+                    : 'Create interactive practice questions to test your active recall and identify weak review areas.'
+                  }
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-brand-green/10 text-brand-green">
+                {isExam ? 'Timed' : 'Socratic Feedback'}
+              </span>
+              <span className="text-xs font-black uppercase tracking-wider text-brand-green group-hover:underline">
+                Generate &rarr;
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Show list of generated quizzes/exams
+    return (
+      <div className="flex-grow flex flex-col gap-5 overflow-y-auto py-2 pr-1 animate-in fade-in duration-300">
+        <div className="flex items-center justify-between shrink-0">
+          <div className="text-left select-none">
+            <h3 className="font-extrabold text-lg text-brand-forest tracking-tight leading-none">
+              {isExam ? 'Exam Prep' : 'Quiz'}
+            </h3>
+            <p className="text-[10px] text-zinc-400 font-semibold mt-1.5 font-sans">
+              Test your knowledge with AI-generated {isExam ? 'exams' : 'quizzes'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowConfigForm(true)}
+            className="px-3.5 py-1.5 rounded-xl bg-brand-green text-white text-[11px] font-black uppercase tracking-wider hover:bg-brand-forest active:scale-95 transition-all shadow-3xs cursor-pointer"
+          >
+            {isExam ? '+ New Exam' : '+ New Quiz'}
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {currentQuizzes.map((q) => {
+            const dateStr = q.submittedAt || q.createdAt || '';
+            const formatDate = (ds: string) => {
+              if (!ds) return '';
+              const date = new Date(ds);
+              return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            };
+            const formatType = q.format === 'objective' ? 'MCQ' : q.format === 'theory' ? 'Theory' : 'Mixed';
+            
+            // Progress calculation
+            const answeredCount = q.questions.filter((qu: any) => qu.studentAnswer).length;
+            const progressPct = q.score !== undefined ? 100 : Math.round((answeredCount / q.questions.length) * 100);
+
+            return (
+              <div
+                key={q._id}
+                onClick={() => onLoadSavedQuiz?.(q)}
+                className="group relative bg-[#FCFDF9] border border-zinc-200/50 hover:border-brand-green/30 rounded-2xl p-4 text-left cursor-pointer transition-all duration-200 hover:shadow-xs active:scale-[0.99] flex flex-col gap-3 overflow-hidden"
+              >
+                {/* Title and dots */}
+                <div className="flex items-start justify-between gap-2.5">
+                  <h4 className="font-extrabold text-[13px] text-brand-forest group-hover:text-brand-green transition-colors leading-snug truncate flex-1">
+                    {q.conceptFocus || docTitle || 'Quiz Assessment'}
+                  </h4>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); }}
+                    className="p-1 rounded-md text-zinc-400 hover:text-brand-forest hover:bg-zinc-100 transition-all shrink-0"
+                  >
+                    <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                      <circle cx="12" cy="5" r="2" />
+                      <circle cx="12" cy="12" r="2" />
+                      <circle cx="12" cy="19" r="2" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Inline Document & metadata row */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 border border-rose-100 text-[8px] font-black uppercase text-rose-600 tracking-tighter shrink-0 select-none">
+                    PDF
+                  </span>
+                  <span className="text-[10px] font-bold text-zinc-400 truncate max-w-[120px] select-none leading-none">
+                    {docTitle}
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-zinc-200 shrink-0" />
+                  <span className="text-[9px] font-bold text-zinc-450 uppercase tracking-wide select-none leading-none">
+                    {formatType}
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-zinc-200 shrink-0" />
+                  <span className="text-[9px] font-bold text-zinc-450 uppercase tracking-wide select-none leading-none">
+                    {q.totalQuestions || q.questions.length} Qs
+                  </span>
+                </div>
+
+                {/* Bottom row: Progress & Score indicator */}
+                <div className="flex items-center justify-between gap-4 border-t border-zinc-100/70 pt-2.5 mt-0.5">
+                  {q.score !== undefined ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-brand-lime/25 text-brand-forest font-bold">
+                        Score: {q.score}%
+                      </span>
+                      <span className="text-[9px] text-zinc-400 font-bold select-none leading-none">
+                        Completed
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center gap-3">
+                      <div className="flex items-center gap-1 select-none">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
+                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-green">
+                          Live
+                        </span>
+                      </div>
+                      {/* Slim horizontal progress bar */}
+                      <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <div className="h-1 bg-zinc-100 rounded-full overflow-hidden flex-1">
+                          <div
+                            className="h-full bg-brand-green rounded-full transition-all duration-300"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <span className="text-[9px] font-black text-zinc-450 select-none leading-none shrink-0">
+                          {progressPct}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <span className="text-[9px] font-bold text-zinc-400 select-none leading-none">
+                    {formatDate(dateStr)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   /* ─────────────────────────── MAIN CONTENT ───────────────────────────── */
   const content = (
     <div className="flex flex-col h-full">
       {/* Panel header */}
       {!isEmbed && (
         <div className="flex items-center justify-between pb-5 border-b border-gray-100 mb-6 shrink-0">
-          <div className="flex items-center gap-2">
-            <FileQuestion className="w-4 h-4 text-brand-green" />
-            <span className="font-semibold text-sm text-brand-forest">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {isCurrentQuizTypeActive && setQuiz && (
+              <button
+                type="button"
+                onClick={() => setQuiz(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-brand-forest hover:bg-zinc-100 transition-all cursor-pointer shrink-0 active:scale-95 flex items-center justify-center"
+                title="Back to Quizzes"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <FileQuestion className="w-4 h-4 text-brand-green shrink-0" />
+            <span className="font-semibold text-sm text-brand-forest truncate">
               {isExam ? 'Exam Simulator' : 'Practice Questions'}
             </span>
           </div>
           <button
             onClick={onClose}
-            className="text-[11px] font-medium text-gray-400 hover:text-brand-forest transition-colors cursor-pointer"
+            className="text-[11px] font-medium text-gray-400 hover:text-brand-forest transition-colors cursor-pointer shrink-0"
           >
             Close
           </button>
@@ -416,7 +633,7 @@ export default function PracticePanel({
           </div>
         </div>
 
-      ) : quiz ? (
+      ) : isCurrentQuizTypeActive ? (
         /* Quiz active or results */
         showResults ? (
           <div className="flex-1 flex flex-col min-h-0">
@@ -514,7 +731,7 @@ export default function PracticePanel({
                           const letter = String.fromCharCode(65 + idx);
                           const text = cleanOptionText(option);
 
-                          let cardCls = 'border-gray-100 bg-white text-brand-forest hover:border-gray-200 hover:bg-gray-50/50';
+                          let cardCls = 'border-gray-100 bg-white text-brand-forest hover:border-gray-200 hover:bg-gray-55/50';
                           if (hasBeenGraded) {
                             if (isCorrect) cardCls = 'border-brand-lime bg-brand-lime/15 text-brand-forest';
                             else if (isWrong) cardCls = 'border-red-200 bg-red-50 text-red-800';
@@ -580,7 +797,7 @@ export default function PracticePanel({
                               value={theoryAnswers[q._id] || ''}
                               onChange={(e) => setTheoryAnswers(prev => ({ ...prev, [q._id]: e.target.value }))}
                               placeholder="Write your explanation here…"
-                              className="w-full h-28 rounded-[16px] border border-gray-100 bg-gray-50/50 p-4 text-sm font-normal text-brand-forest placeholder:text-gray-300 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green/20 transition-all resize-none disabled:opacity-50"
+                              className="w-full h-28 rounded-[16px] border border-gray-150 bg-[#FBFBFA] p-4 text-sm font-normal text-brand-forest placeholder:text-gray-305 focus:border-brand-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-green/20 transition-all resize-none disabled:opacity-50"
                             />
                             <button
                               type="submit"
@@ -625,7 +842,7 @@ export default function PracticePanel({
                     <button
                       type="button"
                       onClick={() => setIsHintOpen(!isHintOpen)}
-                      className="text-[11px] font-medium text-gray-400 hover:text-brand-forest transition-colors cursor-pointer select-none flex items-center gap-1"
+                      className="text-[11px] font-medium text-gray-400 hover:text-brand-forest transition-colors cursor-pointer flex items-center gap-1.5"
                     >
                       💡 Hint
                       <svg className={`w-3.5 h-3.5 transition-transform ${isHintOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -682,307 +899,374 @@ export default function PracticePanel({
           </div>
         )
       ) : (
-        /* ──────────────────── SETUP FORM ──────────────────── */
-        <div className="flex-1 flex flex-col gap-6 overflow-y-auto">
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block mb-1">
-              {isExam ? 'Exam Simulator' : 'Practice Arena'}
-            </span>
-            <h4 className="font-semibold text-base text-brand-forest tracking-tight leading-tight">
-              How do you want to be tested?
-            </h4>
-            <p className="text-[12px] text-gray-400 font-normal mt-1 leading-relaxed">
-              All settings are optional — you're in full control.
-            </p>
-          </div>
+        renderToolsListOrCard()
+      )}
 
-          {/* ── Difficulty ── */}
-          <div className="space-y-2.5">
-            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">Difficulty</label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['easy', 'medium', 'hard', 'expert'] as const).map(d => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDifficulty(d)}
-                  className={`py-3 px-1 rounded-[16px] border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                    difficulty === d
-                      ? 'border-brand-forest bg-brand-forest text-white'
-                      : 'border-gray-100 bg-white text-brand-forest hover:border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="text-base leading-none">{diffCfg[d].emoji}</span>
-                  <span className="text-[9px] font-semibold">{diffCfg[d].label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Question Format ── */}
-          <div className="space-y-2.5">
-            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">Question Format</label>
-            <div className="space-y-2">
-              {[
-                { id: 'objective',   label: 'Objective / MCQ',     desc: 'Option-based recall and testing.' },
-                { id: 'theory',      label: 'Theory / Subjective', desc: 'Written essay responses.' },
-                { id: 'mixed',       label: 'Mixed Formats',       desc: 'Blend of objective and theory.' },
-                { id: 'story-based', label: 'Scenario Questions',  desc: 'Real-world case studies.' },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setFormat(item.id as any)}
-                  className={`w-full p-3.5 rounded-[16px] border text-left transition-all cursor-pointer ${
-                    format === item.id ? 'border-brand-green bg-brand-green/5' : 'border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="font-semibold text-[13px] text-brand-forest">{item.label}</div>
-                  <div className="text-[10px] text-gray-400 font-normal mt-0.5">{item.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Question count ── */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Questions</label>
-              <span className="text-[10px] font-semibold text-brand-green bg-brand-lime/25 px-2.5 py-0.5 rounded-full">{numQuestions} Qs</span>
-            </div>
-            {!isExam ? (
-              <div className="grid grid-cols-3 gap-2">
-                {[{ n: 5, l: 'Quick' }, { n: 10, l: 'Standard' }, { n: 15, l: 'Full' }].map(({ n, l }) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setNumQuestions(n)}
-                    className={`py-3 rounded-[16px] border flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
-                      numQuestions === n ? 'border-brand-forest bg-brand-forest text-white' : 'border-gray-100 bg-white text-brand-forest hover:border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="font-semibold text-[13px]">{n}</span>
-                    <span className="text-[9px] font-normal opacity-70">{l}</span>
-                  </button>
-                ))}
+      {showConfigForm && (
+        <div 
+          className="fixed inset-0 bg-brand-forest/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+          onClick={() => setShowConfigForm(false)}
+        >
+          <div 
+            className="bg-white rounded-[32px] w-full max-w-md shadow-2xl border border-zinc-200/50 flex flex-col overflow-hidden max-h-[90vh] animate-in zoom-in-95 duration-200 font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 pt-6 pb-4 flex items-start justify-between border-b border-zinc-100 shrink-0">
+              <div className="text-left select-none">
+                <h3 className="font-extrabold text-xl text-brand-forest tracking-tight">
+                  Customize {isExam ? 'Exam' : 'Quiz'}
+                </h3>
+                <p className="text-xs text-zinc-400 font-medium mt-1">
+                  Tailor your questions, mode, and materials.
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => alert("Configure your custom study parameters below. You can focus on specific topics, adjust question count, and set difficulty.")}
+                  className="w-8 h-8 rounded-full border border-zinc-200 hover:bg-zinc-50 flex items-center justify-center text-zinc-400 hover:text-zinc-650 transition-all cursor-pointer"
+                >
+                  <span className="text-sm font-bold">?</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfigForm(false)}
+                  className="w-8 h-8 rounded-full border border-zinc-200 hover:bg-zinc-50 flex items-center justify-center text-zinc-400 hover:text-zinc-650 transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-left">
+              
+              {/* DIFFICULTY */}
+              <div className="space-y-2.5">
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 block font-sans">
+                  Difficulty
+                </label>
                 <div className="grid grid-cols-4 gap-2">
-                  {(['10', '20', '30', 'custom'] as const).map(c => (
+                  {(['easy', 'medium', 'hard', 'expert'] as const).map(d => (
                     <button
-                      key={c}
+                      key={d}
                       type="button"
-                      onClick={() => { setExamCountType(c); if (c !== 'custom') setNumQuestions(Number(c)); }}
-                      className={`py-3 rounded-[16px] border text-[11px] font-semibold transition-all cursor-pointer ${
-                        examCountType === c ? 'border-brand-forest bg-brand-forest text-white' : 'border-gray-100 bg-white text-brand-forest hover:border-gray-200 hover:bg-gray-50'
+                      onClick={() => setDifficulty(d)}
+                      className={`py-3 px-1 rounded-2xl border flex flex-col items-center gap-1 transition-all cursor-pointer font-sans active:scale-95 ${
+                        difficulty === d
+                          ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green/20'
+                          : 'border-zinc-200 bg-white text-brand-forest hover:border-zinc-300 hover:bg-zinc-50/50'
                       }`}
                     >
-                      {c === 'custom' ? '…' : c}
+                      <span className="text-base leading-none">{diffCfg[d].emoji}</span>
+                      <span className="text-[10px] font-bold">{diffCfg[d].label}</span>
                     </button>
                   ))}
                 </div>
-                {examCountType === 'custom' && (
-                  <div className="space-y-2">
-                    <input type="range" min="5" max="30" step="5" value={numQuestions}
-                      onChange={e => setNumQuestions(Number(e.target.value))}
-                      className="w-full h-1 bg-gray-100 rounded-full appearance-none cursor-pointer accent-brand-green"
-                    />
-                    <div className="flex justify-between text-[8px] font-normal text-gray-400">
-                      <span>5</span><span>15</span><span>30</span>
+              </div>
+
+              {/* QUESTION FORMAT */}
+              <div className="space-y-2.5">
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 block font-sans">
+                  Question Format
+                </label>
+                <div className="space-y-2.5">
+                  {[
+                    { id: 'objective',   label: 'Objective / MCQ',     desc: 'Option-based recall and testing.' },
+                    { id: 'theory',      label: 'Theory / Subjective', desc: 'Written essay responses.' },
+                    { id: 'mixed',       label: 'Mixed Formats',       desc: 'Blend of objective and theory.' },
+                    { id: 'story-based', label: 'Scenario Questions',  desc: 'Real-world case studies.' },
+                  ].map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setFormat(item.id as any)}
+                      className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer font-sans active:scale-[0.99] ${
+                        format === item.id 
+                          ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green/20 font-bold' 
+                          : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50/50'
+                      }`}
+                    >
+                      <div className="font-extrabold text-xs text-brand-forest">{item.label}</div>
+                      <div className="text-[10px] text-zinc-400 font-semibold mt-0.5 leading-tight">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* QUESTIONS */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">Questions</label>
+                  <span className="text-[10px] font-extrabold text-brand-green bg-brand-lime/20 px-2.5 py-0.5 rounded-full font-sans">{numQuestions} Qs</span>
+                </div>
+                {!isExam ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {[{ n: 5, l: 'Quick' }, { n: 10, l: 'Standard' }, { n: 15, l: 'Full' }].map(({ n, l }) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setNumQuestions(n)}
+                        className={`py-3 rounded-2xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer font-sans active:scale-95 ${
+                          numQuestions === n 
+                            ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green/20 text-brand-forest font-bold' 
+                            : 'border-zinc-200 bg-white text-brand-forest hover:border-zinc-300 hover:bg-zinc-50/50'
+                        }`}
+                      >
+                        <span className="font-extrabold text-xs">{n}</span>
+                        <span className="text-[9px] font-semibold text-zinc-400 leading-none">{l}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['10', '20', '30', 'custom'] as const).map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => { setExamCountType(c); if (c !== 'custom') setNumQuestions(Number(c)); }}
+                          className={`py-3 rounded-2xl border text-[11px] font-extrabold transition-all cursor-pointer font-sans active:scale-95 ${
+                            examCountType === c 
+                              ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green/20 text-brand-forest' 
+                              : 'border-zinc-200 bg-white text-brand-forest hover:border-zinc-300 hover:bg-zinc-50/50'
+                          }`}
+                        >
+                          {c === 'custom' ? '…' : c}
+                        </button>
+                      ))}
                     </div>
+                    {examCountType === 'custom' && (
+                      <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+                        <input 
+                          type="range" 
+                          min="5" 
+                          max="30" 
+                          step="5" 
+                          value={numQuestions}
+                          onChange={e => setNumQuestions(Number(e.target.value))}
+                          className="w-full h-1 bg-zinc-100 rounded-full appearance-none cursor-pointer accent-brand-green"
+                        />
+                        <div className="flex justify-between text-[8px] font-extrabold text-zinc-450 font-sans">
+                          <span>5</span><span>15</span><span>30</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* ── Reveal style ── */}
-          <div className="space-y-2.5">
-            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">Answer Reveal</label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { id: 'instant', label: 'Instant Reveal', desc: 'Graded after each answer.' },
-                { id: 'end',     label: 'End Reveal',     desc: 'All shown at the finish.' },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setRevealStyle(item.id as any)}
-                  className={`p-3.5 rounded-[16px] border text-left transition-all cursor-pointer ${
-                    revealStyle === item.id ? 'border-brand-green bg-brand-green/5' : 'border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="font-semibold text-[12px] text-brand-forest">{item.label}</div>
-                  <div className="text-[9px] text-gray-400 font-normal mt-0.5">{item.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Timed mode ── */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Timed Mode</label>
-              <button
-                type="button"
-                onClick={() => setIsTimed(!isTimed)}
-                className={`relative rounded-full transition-all cursor-pointer shrink-0 ${isTimed ? 'bg-brand-green' : 'bg-gray-200'}`}
-                style={{ width: 40, height: 22 }}
-              >
-                <span
-                  className="absolute top-0.5 bg-white rounded-full shadow-sm transition-all"
-                  style={{ width: 18, height: 18, left: isTimed ? 20 : 2 }}
-                />
-              </button>
-            </div>
-            {isTimed && (
-              <div className="space-y-2">
-                <div className="grid grid-cols-5 gap-1.5">
-                  {[5, 10, 15, 20, 30].map(m => (
+              {/* ANSWER REVEAL */}
+              <div className="space-y-2.5">
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 block font-sans">Answer Reveal</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'instant', label: 'Instant Reveal', desc: 'Graded after each answer.' },
+                    { id: 'end',     label: 'End Reveal',     desc: 'All shown at the finish.' },
+                  ].map(item => (
                     <button
-                      key={m}
+                      key={item.id}
                       type="button"
-                      onClick={() => setTimeLimitMinutes(m)}
-                      className={`py-2 rounded-[12px] border text-[11px] font-semibold transition-all cursor-pointer ${
-                        timeLimitMinutes === m ? 'border-brand-forest bg-brand-forest text-white' : 'border-gray-100 bg-white text-brand-forest hover:border-gray-200'
+                      onClick={() => setRevealStyle(item.id as any)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer font-sans active:scale-[0.98] ${
+                        revealStyle === item.id 
+                          ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green/20 font-bold' 
+                          : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50/50'
                       }`}
                     >
-                      {m}m
+                      <div className="font-extrabold text-xs text-brand-forest">{item.label}</div>
+                      <div className="text-[9px] text-zinc-400 font-semibold mt-0.5 leading-tight">{item.desc}</div>
                     </button>
                   ))}
                 </div>
-                <p className="text-[9px] text-gray-400 font-normal">Auto-submits when time runs out.</p>
               </div>
-            )}
-          </div>
 
-          {/* ── Concept Focus Selection (Multi-select Pills) ── */}
-          {topics && topics.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">
-                Concept Focus <span className="font-normal normal-case">· Optional</span>
-              </label>
-              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-gray-50/50 border border-gray-100 rounded-[16px]">
-                {topics.map((t) => {
-                  const selectedList = conceptFocus ? conceptFocus.split(',').map(x => x.trim()).filter(Boolean) : [];
-                  const isSelected = selectedList.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => {
-                        let newList;
-                        if (isSelected) {
-                          newList = selectedList.filter(x => x !== t);
-                        } else {
-                          newList = [...selectedList, t];
-                        }
-                        setConceptFocus(newList.join(','));
-                      }}
-                      className={`px-3.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer select-none active:scale-[0.98] ${
-                        isSelected 
-                          ? 'bg-brand-green border-brand-green text-white shadow-3xs'
-                          : 'bg-white border-zinc-200 text-brand-forest hover:bg-zinc-50'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
+              {/* TIMED MODE */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">Timed Mode</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsTimed(!isTimed)}
+                    className={`relative rounded-full transition-all cursor-pointer shrink-0 ${isTimed ? 'bg-brand-green' : 'bg-zinc-200'}`}
+                    style={{ width: 40, height: 22 }}
+                  >
+                    <span
+                      className="absolute top-0.5 bg-white rounded-full shadow-xs transition-all"
+                      style={{ width: 18, height: 18, left: isTimed ? 20 : 2 }}
+                    />
+                  </button>
+                </div>
+                {isTimed && (
+                  <div className="space-y-2 pt-1 animate-in slide-in-from-top-1 duration-200">
+                    <div className="grid grid-cols-5 gap-1.5 font-sans">
+                      {[5, 10, 15, 20, 30].map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setTimeLimitMinutes(m)}
+                          className={`py-2 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer active:scale-95 ${
+                            timeLimitMinutes === m 
+                              ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green/20 text-brand-forest' 
+                              : 'border-zinc-200 bg-white text-brand-forest hover:border-zinc-300 hover:bg-zinc-50/50'
+                          }`}
+                        >
+                          {m}m
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-zinc-450 font-bold leading-none font-sans">Auto-submits when time runs out.</p>
+                  </div>
+                )}
               </div>
-              <p className="text-[9px] text-gray-400 font-normal">Select specific concepts to focus on, or deselect all to cover the entire source material.</p>
+
+              {/* INSTRUCTIONS */}
+              <div className="space-y-2.5">
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 block font-sans">
+                  Focus / Instructions <span className="font-normal normal-case text-zinc-350">· optional</span>
+                </label>
+                <input
+                  type="text"
+                  value={instructions}
+                  onChange={e => setInstructions(e.target.value)}
+                  placeholder="e.g. Focus on key formulas from Chapter 3…"
+                  className="w-full px-4 py-3.5 border border-zinc-200 rounded-2xl bg-white text-xs font-semibold text-brand-forest placeholder:text-zinc-300 focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green/20 transition-all font-sans"
+                />
+              </div>
+
+              {/* MATERIALS */}
+              <div className="space-y-2.5">
+                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 block font-sans">
+                  Materials
+                </label>
+                <div className="flex items-center gap-2 p-2.5 bg-zinc-50 border border-zinc-150 rounded-xl max-w-full">
+                  <div className="w-6 h-6 bg-red-100 text-white rounded flex items-center justify-center shrink-0 font-extrabold text-[8px] tracking-tighter shadow-3xs">
+                    PDF
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-500 truncate flex-1 leading-none font-sans">
+                    {docTitle}.pdf
+                  </span>
+                </div>
+              </div>
+
+              {/* CONCEPT FOCUS */}
+              {topics && topics.length > 0 && (
+                <div className="space-y-2.5">
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 block font-sans">
+                    Concept Focus <span className="font-normal normal-case text-zinc-300">· optional</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2.5 bg-zinc-50 border border-zinc-150 rounded-[16px]">
+                    {topics.map((t) => {
+                      const selectedList = conceptFocus ? conceptFocus.split(',').map(x => x.trim()).filter(Boolean) : [];
+                      const isSelected = selectedList.includes(t);
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => {
+                            let newList;
+                            if (isSelected) {
+                              newList = selectedList.filter(x => x !== t);
+                            } else {
+                              newList = [...selectedList, t];
+                            }
+                            setConceptFocus(newList.join(','));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl border text-[10px] font-extrabold transition-all cursor-pointer select-none active:scale-[0.98] font-sans ${
+                            isSelected 
+                              ? 'bg-brand-green border-brand-green text-white shadow-3xs'
+                              : 'bg-white border-zinc-200 text-brand-forest hover:bg-zinc-100'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] text-zinc-450 font-bold leading-none font-sans">Select specific concepts to focus on, or deselect all to cover the entire source material.</p>
+                </div>
+              )}
+
+              {/* LIMIT ERROR */}
+              {limitError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-left flex gap-2 text-rose-700 text-xs font-semibold animate-in slide-in-from-bottom-1">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Daily limit reached</p>
+                    <p className="text-[10px] text-rose-500 mt-0.5 leading-relaxed">
+                      Free accounts can generate three {limitError.type}s per day. Try again in <strong>{limitError.remaining}</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
             </div>
-          )}
 
-          {/* ── Custom focus ── */}
-          <div className="space-y-2">
-            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400 block">
-              Focus / Instructions <span className="font-normal normal-case">· Optional</span>
-            </label>
-            <input
-              type="text"
-              value={instructions}
-              onChange={e => setInstructions(e.target.value)}
-              placeholder="e.g. Focus on key formulas from Chapter 3…"
-              className="w-full px-4 py-3 border border-gray-100 rounded-[16px] bg-white text-[13px] font-normal text-brand-forest placeholder:text-gray-300 focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green/20 transition-all"
-            />
-          </div>
-
-          {/* ── CTA ── */}
-          {limitError ? (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-[20px] space-y-3 relative">
-              <button 
-                type="button"
-                onClick={() => setLimitError(null)}
-                className="absolute top-3.5 right-3.5 p-1 text-red-400 hover:text-red-700 rounded-lg hover:bg-red-100/40 transition-all cursor-pointer"
-                title="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <div className="flex gap-2 text-red-700 text-sm font-semibold pr-6">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                Daily limit reached
-              </div>
-              <p className="text-[11px] text-red-500/90 font-normal leading-relaxed">
-                Free accounts can generate three {limitError.type}s per day. Try again in <strong>{limitError.remaining}</strong>.
-              </p>
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-zinc-55 border-t border-zinc-100 flex items-center justify-end gap-3 shrink-0 select-none">
               <button
                 type="button"
-                onClick={() => useStore.getState().setPricingModalOpen(true)}
-                className="w-full py-3 bg-brand-forest hover:bg-brand-green text-white font-medium text-sm rounded-full transition-colors cursor-pointer text-center"
+                onClick={() => setShowConfigForm(false)}
+                className="px-5 py-2.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-650 rounded-xl text-xs font-extrabold transition-all cursor-pointer active:scale-95"
               >
-                Upgrade Plan
+                Cancel
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={async () => {
-                const check = checkGenerationLimit(isExam ? 'exam' : 'quiz');
-                if (check.limited) { setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr }); return; }
-                try {
-                  await onGenerateQuiz(
-                    format,
-                    numQuestions,
-                    instructions || undefined,
-                    isExam,
-                    difficulty,
-                    isTimed ? timeLimitMinutes : 0,
-                    revealStyle,
-                    conceptFocus || undefined
-                  );
-                  const userId = user?.id || user?._id || 'guest';
-                  const key = isExam ? `braudle_last_generated_exam_${userId}` : `braudle_last_generated_quiz_${userId}`;
-                  const stored = localStorage.getItem(key);
-                  let timestamps: number[] = [];
-                  if (stored) {
-                    try {
-                      timestamps = JSON.parse(stored);
-                      if (!Array.isArray(timestamps)) {
+              <button
+                type="button"
+                disabled={loadingQuiz}
+                onClick={async () => {
+                  const check = checkGenerationLimit(isExam ? 'exam' : 'quiz');
+                  if (check.limited) {
+                    setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr });
+                    return;
+                  }
+                  setShowConfigForm(false);
+                  try {
+                    await onGenerateQuiz(
+                      format,
+                      numQuestions,
+                      instructions || undefined,
+                      isExam,
+                      difficulty,
+                      isTimed ? timeLimitMinutes : 0,
+                      revealStyle,
+                      conceptFocus || undefined
+                    );
+                    const userId = user?.id || user?._id || 'guest';
+                    const key = isExam ? `braudle_last_generated_exam_${userId}` : `braudle_last_generated_quiz_${userId}`;
+                    const stored = localStorage.getItem(key);
+                    let timestamps: number[] = [];
+                    if (stored) {
+                      try {
+                        timestamps = JSON.parse(stored);
+                        if (!Array.isArray(timestamps)) {
+                          timestamps = [Number(stored)];
+                        }
+                      } catch {
                         timestamps = [Number(stored)];
                       }
-                    } catch {
-                      timestamps = [Number(stored)];
+                    }
+                    timestamps.push(Date.now());
+                    localStorage.setItem(key, JSON.stringify(timestamps));
+                  } catch (err: any) {
+                    const m = err.message || '';
+                    if (err.status === 429 || m.toLowerCase().includes('limit') || m.toLowerCase().includes('cooldown') || m.toLowerCase().includes('available in')) {
+                      const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
+                      setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h' });
+                    } else {
+                      alert(m || (isExam ? 'An unexpected error occurred while creating the exam.' : 'An unexpected error occurred while creating the quiz.'));
                     }
                   }
-                  timestamps.push(Date.now());
-                  localStorage.setItem(key, JSON.stringify(timestamps));
-                } catch (err: any) {
-                  const m = err.message || '';
-                  if (err.status === 429 || m.toLowerCase().includes('limit') || m.toLowerCase().includes('cooldown') || m.toLowerCase().includes('available in')) {
-                    const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
-                    setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h' });
-                  } else {
-                    alert(m || 'An unexpected error occurred while generating the quiz.');
-                  }
-                }
-              }}
-              disabled={loadingQuiz}
-              className="w-full py-3.5 bg-brand-green hover:bg-brand-forest text-white rounded-full text-sm font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <FileQuestion className="w-4 h-4" />
-              {loadingQuiz ? 'Generating…' : `Generate ${isExam ? 'Exam' : 'Practice'}`}
-            </button>
-          )}
+                }}
+                className="px-5 py-2.5 bg-brand-green hover:bg-brand-forest text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 shadow-2xs disabled:opacity-40"
+              >
+                <span>✨</span>
+                <span>{loadingQuiz ? 'Generating...' : 'Generate'}</span>
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
     </div>

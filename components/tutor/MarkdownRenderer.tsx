@@ -309,7 +309,7 @@ function parseInlineMarkdown(text: string, parentKey: number) {
         }
         if (sub.startsWith('`') && sub.endsWith('`')) {
           return (
-            <code key={idx} className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-brand-green border border-zinc-200/50">
+            <code key={idx} className="bg-zinc-100 px-1.5 py-0.5 rounded text-xs font-mono text-brand-green border border-zinc-200/50 break-words whitespace-pre-wrap">
               {sub.slice(1, -1)}
             </code>
           );
@@ -340,7 +340,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const blocks = parseMarkdown(content);
 
   return (
-    <div className="space-y-4 text-left w-full text-[15px] sm:text-[16px] leading-relaxed text-brand-forest/90 font-normal">
+    <div className="space-y-4 text-left w-full max-w-full min-w-0 break-words text-[15px] sm:text-[16px] leading-relaxed text-brand-forest/90 font-normal">
       {blocks.map((block, idx) => {
         switch (block.type) {
           case 'heading': {
@@ -475,7 +475,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
           case 'paragraph':
           default:
             return (
-              <p key={idx} className="my-3 text-[15px] sm:text-[16px] leading-relaxed text-brand-forest/90 font-normal">
+              <p key={idx} className="my-3 text-[15px] sm:text-[16px] leading-relaxed text-brand-forest/90 font-normal break-words">
                 {renderInlineContent(block.text)}
               </p>
             );

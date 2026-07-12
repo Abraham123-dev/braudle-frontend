@@ -30,7 +30,7 @@ export default function SummaryPanel({
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto border border-zinc-200/50 rounded-3xl bg-white p-5 shadow-2xs min-h-[300px]">
+      <div className="flex-1 overflow-y-auto min-h-[300px] pr-1">
         {loadingSummary ? (
           <div className="h-full flex flex-col items-center justify-center py-20 space-y-4">
             <div className="w-8 h-8 rounded-full border-4 border-brand-green/20 border-t-brand-green animate-spin" />
@@ -72,16 +72,33 @@ export default function SummaryPanel({
             </div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center py-10 space-y-4 text-center text-gray-400">
-            <p className="text-[11px] leading-relaxed max-w-[200px]">
-              Summary not generated. Click the button below to initiate generation.
-            </p>
-            <button
+          <div className="flex-grow flex flex-col justify-center gap-6 py-4 animate-in fade-in duration-300">
+            <div
               onClick={fetchDetailedSummary}
-              className="px-5 py-2.5 bg-brand-green text-white font-bold text-xs rounded-xl hover:bg-brand-green/95 transition-all cursor-pointer shadow-3xs active:scale-95"
+              className="group relative bg-[#FCFDF9] border border-zinc-200/60 hover:border-brand-green/30 rounded-3xl p-6 text-left cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] flex flex-col justify-between min-h-[180px] shadow-2xs"
             >
-              Generate Summary
-            </button>
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform animate-pulse">
+                  <Sparkles className="w-5 h-5 fill-current" />
+                </div>
+                <div className="flex-grow min-w-0">
+                  <h4 className="font-extrabold text-base text-brand-forest group-hover:text-brand-green transition-colors">
+                    Generate study summary
+                  </h4>
+                  <p className="text-xs text-gray-400 font-normal leading-relaxed mt-1.5 font-sans">
+                    Analyze the source note and generate a complete study outline, section definitions, key formulas, and explanations.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700">
+                  AI Summarizer
+                </span>
+                <span className="text-xs font-black uppercase tracking-wider text-brand-green group-hover:underline">
+                  Generate &rarr;
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>

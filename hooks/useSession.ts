@@ -111,6 +111,10 @@ export interface Quiz {
   timeLimit?: number;
   revealStyle?: 'instant' | 'end';
   difficulty?: string;
+  submittedAt?: string;
+  createdAt?: string;
+  format?: 'objective' | 'theory' | 'mixed' | 'story-based';
+  conceptFocus?: string;
 }
 
 export function useSession(sessionId: string) {
@@ -451,6 +455,100 @@ export function useSession(sessionId: string) {
     }
   };
 
+  const triggerExplainStream = async (selectedText: string) => {
+    if (isStreamingRef.current) return;
+    isStreamingRef.current = true;
+    setIsStreaming(true);
+    setStreamingContent('');
+    setActiveSessionError(null);
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const streamUrl = `${backendUrl}/sessions/${sessionId}/explain-selection`;
+
+      const response = await fetchWithRefresh(streamUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        },
+        body: JSON.stringify({ selectedText })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          const resetAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setIsTokenLimited(true);
+          setTokenResetTime(resetAt);
+          return;
+        }
+        
+        const err: any = new Error(errorData.message || 'Failed to connect to tutoring engine.');
+        err.status = response.status;
+        err.errorId = errorData.errorId || null;
+        throw err;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder('utf-8');
+      if (!reader) return;
+
+      let buffer = '';
+      let accumulatedText = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine) continue;
+
+          if (cleanLine.startsWith('data: ')) {
+            const dataStr = cleanLine.slice(6);
+            if (dataStr === '[DONE]') {
+              break;
+            }
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.token) {
+                accumulatedText += parsed.token;
+                setStreamingContent(accumulatedText.trim());
+              } else if (parsed.error) {
+                const err: any = new Error(parsed.error);
+                err.errorId = parsed.errorId || null;
+                throw err;
+              }
+            } catch (e) {
+              // Ignore split JSON parts
+            }
+          }
+        }
+      }
+
+      if (accumulatedText) {
+        setMessages(prev => [...prev, { role: 'assistant', content: accumulatedText }]);
+      }
+    } catch (err: any) {
+      console.error(err);
+      let clientMessage = err.message || 'Tutoring connection timed out. Please check your internet connection.';
+      setActiveSessionError({
+        message: clientMessage,
+        errorId: err.errorId || null
+      });
+    } finally {
+      setStreamingContent('');
+      setIsStreaming(false);
+      isStreamingRef.current = false;
+    }
+  };
+
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isStreaming) return;
@@ -698,6 +796,7 @@ export function useSession(sessionId: string) {
     activeSessionError,
     setActiveSessionError,
     triggerTutorStream,
+    triggerExplainStream,
     lastSentMessage,
     dueCount,
     handleRateConcept
