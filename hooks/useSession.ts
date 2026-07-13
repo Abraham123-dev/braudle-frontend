@@ -215,6 +215,25 @@ export function useSession(sessionId: string) {
           setExplainMessagesCount(sessionRes.explainMessagesCount);
         }
 
+        // Track limits and lock states
+        if (sessionRes.isTokenLimited !== undefined) {
+          setIsTokenLimited(sessionRes.isTokenLimited);
+          setTokenResetTime(sessionRes.tokenResetTime || null);
+          setTokenLimitMessage(sessionRes.tokenLimitMessage || '');
+        }
+
+        // Client-side backup enforcement for the document chat limit
+        const plan = user?.plan || 'free';
+        if (plan !== 'pro' && sessionRes.chatMessagesCount !== undefined) {
+          const chatLimit = plan === 'free' ? 20 : 60;
+          if (sessionRes.chatMessagesCount >= chatLimit) {
+            setIsTokenLimited(true);
+            if (!sessionRes.tokenLimitMessage) {
+              setTokenLimitMessage(`You've reached your ${plan} plan limit of ${chatLimit} chat messages for this document.`);
+            }
+          }
+        }
+
         // Track documentId
         const doc = sessionRes.session.documentId;
         if (doc) {
@@ -463,7 +482,18 @@ export function useSession(sessionId: string) {
       });
     } finally {
       if (accumulatedText) {
-        setChatMessagesCount(prev => prev + 1);
+        setChatMessagesCount(prev => {
+          const nextCount = prev + 1;
+          const plan = user?.plan || 'free';
+          if (plan !== 'pro') {
+            const chatLimit = plan === 'free' ? 20 : 60;
+            if (nextCount >= chatLimit) {
+              setIsTokenLimited(true);
+              setTokenLimitMessage(`You've reached your ${plan} plan limit of ${chatLimit} chat messages for this document.`);
+            }
+          }
+          return nextCount;
+        });
       }
       setStreamingContent('');
       setIsStreaming(false);
