@@ -5,6 +5,7 @@ import { AlertCircle, FileQuestion, Loader2, Clock, BookOpen, RotateCcw, Message
 import { Quiz, Question, WeakTopic } from '@/hooks/useSession';
 import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
 import { useStore } from '@/lib/store';
+import Logo from '@/components/Logo';
 
 /* ─── Utility helpers ─────────────────────────────────────────── */
 
@@ -101,6 +102,8 @@ interface PracticePanelProps {
   sessionQuizzes?: Quiz[];
   docTitle?: string;
   onLoadSavedQuiz?: (quiz: Quiz) => void;
+  initialInstructions?: string;
+  initialShowConfig?: boolean;
 }
 
 /* ─── Component ───────────────────────────────────────────────── */
@@ -129,9 +132,12 @@ export default function PracticePanel({
   sessionQuizzes = [],
   docTitle = 'Document',
   onLoadSavedQuiz,
+  initialInstructions = '',
+  initialShowConfig = false,
 }: PracticePanelProps) {
   const user = useStore((state) => state.user);
-  const [showConfigForm, setShowConfigForm] = useState(false);
+  const setPricingModalOpen = useStore((state) => state.setPricingModalOpen);
+  const [showConfigForm, setShowConfigForm] = useState(initialShowConfig);
 
   /* ── Setup form ── */
   const [format, setFormat] = useState<'objective' | 'theory' | 'mixed' | 'story-based'>('mixed');
@@ -156,6 +162,18 @@ export default function PracticePanel({
       setRevealStyle('instant');
     }
   }, [isExam, showConfigForm]);
+
+  useEffect(() => {
+    if (initialInstructions) {
+      setInstructions(initialInstructions);
+    }
+  }, [initialInstructions]);
+
+  useEffect(() => {
+    if (initialShowConfig) {
+      setShowConfigForm(initialShowConfig);
+    }
+  }, [initialShowConfig]);
 
   useEffect(() => {
     setLimitError(null);
@@ -200,7 +218,8 @@ export default function PracticePanel({
     const cooldown = 86400000;
     timestamps = timestamps.filter(t => Date.now() - t < cooldown);
 
-    if (timestamps.length >= 3) {
+    const limit = plan === 'free' ? 1 : 5;
+    if (timestamps.length >= limit) {
       const oldest = Math.min(...timestamps);
       const remainingMs = cooldown - (Date.now() - oldest);
       const hrs = Math.ceil(remainingMs / 3600000);
@@ -291,7 +310,12 @@ export default function PracticePanel({
     setIsGradingTheory(false);
   };
 
-  const correctCount = Object.values(gradedQuestions).filter(g => g.isCorrect).length;
+  const correctCount = quiz 
+    ? quiz.questions.filter(q => {
+        const localGraded = gradedQuestions[q._id];
+        return localGraded ? localGraded.isCorrect : !!q.isCorrect;
+      }).length
+    : 0;
   const finalScore = quiz?.score ?? (quiz ? Math.round((correctCount / quiz.questions.length) * 100) : 0);
   const { grade, label: gradeLabel, textColor: gradeText, bg: gradeBg, border: gradeBorder, ringColor } = getGradeData(finalScore);
 
@@ -310,7 +334,9 @@ export default function PracticePanel({
       const topic = q.topic || 'General';
       if (!topicStats[topic]) topicStats[topic] = { c: 0, t: 0, sourceSection: q.sourceSection };
       topicStats[topic].t++;
-      if (gradedQuestions[q._id]?.isCorrect) topicStats[topic].c++;
+      const localGraded = gradedQuestions[q._id];
+      const isCorr = localGraded ? localGraded.isCorrect : !!q.isCorrect;
+      if (isCorr) topicStats[topic].c++;
     });
     const weak = quizWeakTopics.length > 0 
       ? quizWeakTopics 
@@ -415,11 +441,11 @@ export default function PracticePanel({
     if (currentQuizzes.length === 0) {
       // Show premium "Generate" card
       return (
-        <div className="flex-grow flex flex-col justify-center gap-6 py-4 animate-in fade-in duration-300">
+        <div className="flex-grow flex flex-col justify-center gap-6 py-4 animate-in fade-in duration-300 select-none">
           <div className="text-left space-y-2 select-none">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-green/5 border border-brand-green/10 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-brand-green">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${isExam ? 'bg-brand-forest/5 border-brand-forest/15 text-brand-forest' : 'bg-[#F6FAF2] border-brand-green/15 text-brand-green'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isExam ? 'bg-brand-forest' : 'bg-brand-green'}`} />
+              <span className="text-[9px] font-black uppercase tracking-wider">
                 {isExam ? 'Exam Simulator' : 'Study Arena'}
               </span>
             </div>
@@ -436,10 +462,23 @@ export default function PracticePanel({
 
           <div
             onClick={() => setShowConfigForm(true)}
-            className="group relative bg-[#FCFDF9] border border-zinc-200/60 hover:border-brand-green/30 rounded-3xl p-6 text-left cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] flex flex-col justify-between min-h-[180px] shadow-2xs"
+            className={`group relative border rounded-3xl p-6 text-left cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] flex flex-col justify-between min-h-[190px] shadow-2xs overflow-hidden ${
+              isExam 
+                ? 'bg-[#FAFBF7] border-zinc-200/60 hover:border-brand-forest/30' 
+                : 'bg-[#FCFDF9] border-zinc-200/60 hover:border-brand-green/30'
+            }`}
           >
+            {/* Soft visual accent behind the card */}
+            <div className={`absolute right-0 bottom-0 w-24 h-24 rounded-full blur-xl pointer-events-none transition-all duration-300 ${
+              isExam ? 'bg-brand-forest/5 group-hover:bg-brand-forest/10' : 'bg-brand-green/5 group-hover:bg-brand-green/10'
+            }`} />
+
             <div className="flex items-start gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${isExam ? 'bg-brand-forest/10 text-brand-forest' : 'bg-brand-green/10 text-brand-green'}`}>
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform border ${
+                isExam 
+                  ? 'bg-brand-forest/5 text-brand-forest border-brand-forest/10' 
+                  : 'bg-brand-green/5 text-brand-green border-brand-green/10'
+              }`}>
                 {isExam ? <Clock className="w-5 h-5" /> : <FileQuestion className="w-5 h-5" />}
               </div>
               <div className="flex-grow min-w-0">
@@ -454,8 +493,10 @@ export default function PracticePanel({
                 </p>
               </div>
             </div>
-            <div className="mt-6 flex items-center justify-between">
-              <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-brand-green/10 text-brand-green">
+            <div className="mt-6 flex items-center justify-between z-10">
+              <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                isExam ? 'bg-brand-forest/10 text-brand-forest' : 'bg-brand-green/10 text-brand-green'
+              }`}>
                 {isExam ? 'Timed' : 'Socratic Feedback'}
               </span>
               <span className="text-xs font-black uppercase tracking-wider text-brand-green group-hover:underline">
@@ -593,39 +634,46 @@ export default function PracticePanel({
   const content = (
     <div className="flex flex-col h-full">
       {/* Panel header */}
-      {!isEmbed && (
-        <div className="flex items-center justify-between pb-5 border-b border-gray-100 mb-6 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {isCurrentQuizTypeActive && setQuiz && (
-              <button
-                type="button"
-                onClick={() => setQuiz(null)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-brand-forest hover:bg-zinc-100 transition-all cursor-pointer shrink-0 active:scale-95 flex items-center justify-center"
-                title="Back to Quizzes"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <FileQuestion className="w-4 h-4 text-brand-green shrink-0" />
-            <span className="font-semibold text-sm text-brand-forest truncate">
-              {isExam ? 'Exam Simulator' : 'Practice Questions'}
-            </span>
-          </div>
+      <div className="flex items-center justify-between pb-4 border-b border-zinc-150 mb-5 shrink-0 select-none">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {(isCurrentQuizTypeActive || showConfigForm) && setQuiz && (
+            <button
+              type="button"
+              onClick={() => {
+                if (showConfigForm) {
+                  setShowConfigForm(false);
+                } else {
+                  setQuiz(null);
+                  setShowResults(false);
+                }
+              }}
+              className="p-1.5 rounded-xl border border-zinc-200 bg-white text-zinc-500 hover:text-brand-forest hover:bg-zinc-50 transition-all cursor-pointer shrink-0 active:scale-95 flex items-center justify-center"
+              title="Go Back"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
+          <FileQuestion className="w-4 h-4 text-brand-green shrink-0" />
+          <span className="font-extrabold text-sm text-brand-forest truncate font-sans">
+            {isExam ? 'Exam Simulator' : 'Practice Arena'}
+          </span>
+        </div>
+        {!isEmbed && (
           <button
             onClick={onClose}
-            className="text-[11px] font-medium text-gray-400 hover:text-brand-forest transition-colors cursor-pointer shrink-0"
+            className="text-[11px] font-bold text-zinc-400 hover:text-brand-forest transition-colors cursor-pointer shrink-0"
           >
             Close
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {loadingQuiz ? (
         /* Loading state */
-        <div className="flex-1 flex flex-col items-center justify-center py-16 gap-5 select-none text-center">
-          <div className="w-12 h-12 rounded-[20px] bg-gray-50 border border-gray-100 flex items-center justify-center relative">
-            <div className="absolute inset-0 rounded-[20px] border-2 border-brand-green/20 border-t-brand-green animate-spin" />
-            <FileQuestion className="w-4 h-4 text-brand-green" />
+        <div className="flex-1 flex flex-col items-center justify-center py-16 gap-6 select-none text-center">
+          <div className="relative w-20 h-20 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-4 border-zinc-100 border-t-brand-green animate-spin" />
+            <Logo size={42} className="animate-pulse object-contain" />
           </div>
           <div>
             <p className="font-semibold text-sm text-brand-forest">{isExam ? 'Building your exam…' : 'Generating questions…'}</p>
@@ -1190,13 +1238,23 @@ export default function PracticePanel({
 
               {/* LIMIT ERROR */}
               {limitError && (
-                <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-left flex gap-2 text-rose-700 text-xs font-semibold animate-in slide-in-from-bottom-1">
+                <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-left flex gap-3 text-rose-700 text-xs font-semibold animate-in slide-in-from-bottom-1 items-start">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <p className="font-bold">Daily limit reached</p>
                     <p className="text-[10px] text-rose-500 mt-0.5 leading-relaxed">
-                      Free accounts can generate three {limitError.type}s per day. Try again in <strong>{limitError.remaining}</strong>.
+                      Free accounts can generate one {limitError.type} per day. Try again in <strong>{limitError.remaining}</strong>.
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowConfigForm(false);
+                        setPricingModalOpen(true);
+                      }}
+                      className="mt-2.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-3xs"
+                    >
+                      🚀 Upgrade Plan
+                    </button>
                   </div>
                 </div>
               )}

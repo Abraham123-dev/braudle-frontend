@@ -72,36 +72,39 @@ export default function FlashcardsPanel({
       return (
         <div className="flex-grow flex flex-col justify-center gap-6 py-4 animate-in fade-in duration-300">
           <div className="text-left space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-green/5 border border-brand-green/10 rounded-full">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#F6FAF2] border border-brand-green/15 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
               <span className="text-[9px] font-black uppercase tracking-wider text-brand-green">Recall Guides</span>
             </div>
             <h3 className="font-extrabold text-2xl text-brand-forest tracking-tight leading-tight">
               Study Flashcards
             </h3>
-            <p className="text-xs text-gray-400 font-medium leading-relaxed font-sans">
+            <p className="text-xs text-zinc-400 font-medium leading-relaxed font-sans">
               Test your active recall and terminology definitions using spaced repetition decks.
             </p>
           </div>
 
           <div
             onClick={() => setShowConfigForm(true)}
-            className="group relative bg-[#FCFDF9] border border-zinc-200/60 hover:border-brand-green/30 rounded-3xl p-6 text-left cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] flex flex-col justify-between min-h-[180px] shadow-2xs"
+            className="group relative bg-[#FCFDF9] border border-zinc-200/60 hover:border-brand-green/30 rounded-3xl p-6 text-left cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] flex flex-col justify-between min-h-[190px] shadow-2xs overflow-hidden"
           >
+            {/* Soft visual accent behind the card */}
+            <div className="absolute right-0 bottom-0 w-24 h-24 bg-brand-yellow/5 rounded-full blur-xl pointer-events-none group-hover:bg-brand-green/5 transition-all duration-300" />
+            
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-brand-yellow/15 text-brand-yellow flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-11 h-11 rounded-2xl bg-brand-yellow/15 text-brand-yellow flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform border border-brand-yellow/10">
                 <BookOpen className="w-5 h-5" />
               </div>
               <div className="flex-grow min-w-0">
-                <h4 className="font-extrabold text-base text-brand-forest group-hover:text-brand-green transition-colors">
+                <h4 className="font-extrabold text-base text-brand-forest group-hover:text-brand-green transition-colors font-sans">
                   Generate flashcards
                 </h4>
-                <p className="text-xs text-gray-400 font-normal leading-relaxed mt-1.5 font-sans">
+                <p className="text-xs text-zinc-400 font-normal leading-relaxed mt-1.5 font-sans">
                   Create interactive flashcard decks from your study material to practice terminology, formulas, and vocab recall.
                 </p>
               </div>
             </div>
-            <div className="mt-6 flex items-center justify-between">
+            <div className="mt-6 flex items-center justify-between z-10">
               <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-brand-yellow/15 text-brand-forest">
                 Recall Cards
               </span>

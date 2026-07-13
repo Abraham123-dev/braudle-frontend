@@ -7,6 +7,7 @@ import * as pdfjs from 'pdfjs-dist';
 import { useFloating, shift, flip, offset, inline } from '@floating-ui/react';
 import { FileText, Sparkles, X, Award } from 'lucide-react';
 import { api } from '@/lib/api';
+import Logo from '@/components/Logo';
 
 // Set up the PDF.js worker using standard cdnjs
 const pdfjsVersion = '6.1.200';
@@ -21,6 +22,10 @@ interface PDFWorkspaceProps {
   onClose?: () => void;
   isActive?: boolean;
   docTitle?: string;
+  isChatAgentOpen?: boolean;
+  onToggleChatAgent?: () => void;
+  targetPage?: number | null;
+  onClearTargetPage?: () => void;
 }
 
 export default function PDFWorkspace({ 
@@ -31,7 +36,11 @@ export default function PDFWorkspace({
   onGenerateFlashcardsPage,
   onClose,
   isActive = true,
-  docTitle = 'Document'
+  docTitle = 'Document',
+  isChatAgentOpen = false,
+  onToggleChatAgent,
+  targetPage = null,
+  onClearTargetPage
 }: PDFWorkspaceProps) {
   const [pdf, setPdf] = useState<any>(null);
   const [selectedText, setSelectedText] = useState('');
@@ -45,6 +54,21 @@ export default function PDFWorkspace({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState({ height: 600, width: 320 });
   const [pageSize, setPageSize] = useState({ width: 595, height: 842 });
+
+  useEffect(() => {
+    if (targetPage !== null && targetPage > 0 && targetPage <= (pdf?.numPages || 1)) {
+      if (listRef.current) {
+        try {
+          listRef.current.scrollToItem(targetPage - 1, "center");
+        } catch (err) {
+          // Safe check
+        }
+      }
+      if (onClearTargetPage) {
+        onClearTargetPage();
+      }
+    }
+  }, [targetPage, pdf]);
 
   useEffect(() => {
     if (!pdf) return;
@@ -298,9 +322,9 @@ export default function PDFWorkspace({
   if (isLoading) {
     return (
       <div className="flex-grow flex flex-col items-center justify-center text-center p-6 space-y-6 animate-in fade-in duration-300">
-        <div className="relative w-16 h-16 flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full border-4 border-gray-150 border-t-brand-green animate-spin" />
-          <FileText className="w-6 h-6 text-brand-green animate-pulse" />
+        <div className="relative w-20 h-20 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-zinc-100 border-t-brand-green animate-spin" />
+          <Logo size={42} className="animate-pulse object-contain" />
         </div>
         <div className="space-y-1">
           <h3 className="font-extrabold text-brand-forest text-sm">Opening Study Source...</h3>
@@ -348,7 +372,21 @@ export default function PDFWorkspace({
 
   return (
     <div className="flex-grow flex flex-col h-full overflow-hidden bg-zinc-55/30 relative w-full max-w-full">
-      <div className="absolute top-4 right-4 z-40">
+      <div className="absolute top-4 right-4 z-40 flex items-center gap-2 font-sans select-none">
+        {onToggleChatAgent && (
+          <button
+            onClick={onToggleChatAgent}
+            className={`px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-3xs ${
+              isChatAgentOpen 
+                ? 'bg-brand-green border-brand-green text-white font-bold'
+                : 'bg-white border-zinc-200 text-zinc-400 hover:text-brand-forest hover:bg-zinc-50'
+            }`}
+            title={isChatAgentOpen ? "Close PDF chat assistant" : "Open PDF chat assistant"}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isChatAgentOpen ? 'fill-white text-white' : 'text-zinc-400'}`} />
+            <span>AI Chat</span>
+          </button>
+        )}
         {onClose && (
           <button
             onClick={onClose}

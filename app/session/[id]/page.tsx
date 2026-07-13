@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, use } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { useSession } from '@/hooks/useSession';
+import { useSession, ChatMessage } from '@/hooks/useSession';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import PracticePanel from '@/components/quiz/PracticePanel';
@@ -20,6 +20,8 @@ import SessionRail, { ActiveView, ActiveDrawer } from '@/components/tutor/Sessio
 import LeftSidebar from '@/components/tutor/LeftSidebar';
 import Logo from '@/components/Logo';
 import SlideDrawer from '@/components/tutor/SlideDrawer';
+import PDFAgentChat from '@/components/tutor/PDFAgentChat';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
   AlertCircle,
@@ -176,6 +178,9 @@ export default function SessionPage({ params }: SessionPageProps) {
     activeSuggestions,
     isTokenLimited,
     tokenResetTime,
+    tokenLimitMessage,
+    chatMessagesCount,
+    explainMessagesCount,
     activeSessionError,
     setActiveSessionError,
     triggerTutorStream,
@@ -188,6 +193,7 @@ export default function SessionPage({ params }: SessionPageProps) {
   } = useSession(sessionId);
 
   const user = useStore((state) => state.user);
+  const setPricingModalOpen = useStore((state) => state.setPricingModalOpen);
   // Local Notes State
   const [notes, setNotes] = React.useState<SavedNote[]>([]);
   const [isAddNoteOpen, setIsAddNoteOpen] = React.useState(false);
@@ -195,6 +201,10 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   // Local Inline Quiz State
   const [inlineQuizAnswers, setInlineQuizAnswers] = React.useState<Record<number, string>>({});
+
+  // Local Quiz Preferences
+  const [quizInitialInstructions, setQuizInitialInstructions] = React.useState('');
+  const [quizInitialShowConfig, setQuizInitialShowConfig] = React.useState(false);
 
   // Tab State for Right Panel
   const [rightPanelTab, setRightPanelTab] = React.useState<'studio' | 'quiz' | 'flashcards' | 'summary'>('studio');
@@ -232,6 +242,34 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   const [activeMobileTab, setActiveMobileTab] = React.useState<'sources' | 'chat' | 'studio'>('chat');
   const [centerTab, setCenterTab] = React.useState<'chat' | 'map' | 'pdf' | 'quiz' | 'flashcards' | 'summary' | 'concepts'>('chat');
+  const [isPDFChatOpen, setIsPDFChatOpen] = React.useState(false);
+  const [pdfChatMessages, setPdfChatMessages] = React.useState<ChatMessage[]>([]);
+  const [pdfSelectionToExplain, setPdfSelectionToExplain] = React.useState<{ text: string; timestamp: number } | null>(null);
+  const [pdfTargetPage, setPdfTargetPage] = React.useState<number | null>(null);
+  const [pdfChatWidth, setPdfChatWidth] = React.useState(400);
+  const [isResizing, setIsResizing] = React.useState(false);
+
+  const startResizing = React.useCallback((mouseDownEvent: React.MouseEvent) => {
+    mouseDownEvent.preventDefault();
+    setIsResizing(true);
+    
+    const handleMouseMove = (mouseMoveEvent: MouseEvent) => {
+      const newWidth = window.innerWidth - mouseMoveEvent.clientX;
+      if (newWidth > 300 && newWidth < 800) {
+        setPdfChatWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, []);
+
   // New command-center nav state
   const [isMobileNavOpen, setIsMobileNavOpen] = React.useState(false);
   const [isFocusMode, setIsFocusMode] = React.useState(false);
@@ -287,6 +325,11 @@ export default function SessionPage({ params }: SessionPageProps) {
   };
 
   const handleExplainSelection = async (selectedText: string) => {
+    if (centerTab === 'pdf') {
+      setIsPDFChatOpen(true);
+      setPdfSelectionToExplain({ text: selectedText, timestamp: Date.now() });
+      return;
+    }
     setCenterTab('chat');
     setActiveMobileTab('chat');
     try {
@@ -361,6 +404,11 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   const handleExplainPage = async (pageNum: number, pageText: string) => {
     const prompt = `Please explain the key concepts on Page ${pageNum} of the document:\n\n"${pageText.slice(0, 3000)}"`;
+    if (centerTab === 'pdf') {
+      setIsPDFChatOpen(true);
+      setPdfSelectionToExplain({ text: prompt, timestamp: Date.now() });
+      return;
+    }
     setMessages((prev: any) => [...prev, { role: 'user', content: prompt, timestamp: new Date().toISOString() }]);
     setCenterTab('chat');
     try {
@@ -371,18 +419,12 @@ export default function SessionPage({ params }: SessionPageProps) {
   };
 
   const handleGenerateQuizPage = async (pageNum: number, pageText: string) => {
-    const instructions = `Focus exclusively on this content from Page ${pageNum}:\n\n"${pageText.slice(0, 3000)}"`;
-    setRightPanelTab('quiz');
-    setShowRightPane(true);
-    setIsExamSession(false);
     setQuiz(null);
     setQuizResult(null);
+    setQuizInitialInstructions(`Focus exclusively on Page ${pageNum} content. `);
+    setQuizInitialShowConfig(true);
+    setCenterTab('quiz');
     setActiveMobileTab('studio');
-    try {
-      await handleGenerateQuiz('objective', 5, instructions, false, 'medium', 0, 'instant', `Page ${pageNum} Content`);
-    } catch (err) {
-      console.error('Failed to generate page quiz:', err);
-    }
   };
 
   const handleGenerateFlashcardsPage = async (pageNum: number, pageText: string) => {
@@ -710,7 +752,8 @@ export default function SessionPage({ params }: SessionPageProps) {
         const cooldown = 24 * 60 * 60 * 1000;
         timestamps = timestamps.filter(t => Date.now() - t < cooldown);
 
-        if (timestamps.length >= 3) {
+        const limit = userPlan === 'free' ? 1 : 5;
+        if (timestamps.length >= limit) {
           const oldest = Math.min(...timestamps);
           const remainingMs = cooldown - (Date.now() - oldest);
           const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
@@ -985,16 +1028,57 @@ export default function SessionPage({ params }: SessionPageProps) {
               </div>
 
               {/* TAB: PDF */}
-              <div className={`flex-1 flex flex-col min-h-0 w-full h-full ${centerTab === 'pdf' ? 'animate-in fade-in duration-200' : 'hidden'}`}>
-                <PDFWorkspace
-                  documentId={documentId}
-                  onExplainSelection={handleExplainSelection}
-                  onExplainPage={handleExplainPage}
-                  onGenerateQuizPage={handleGenerateQuizPage}
-                  onGenerateFlashcardsPage={handleGenerateFlashcardsPage}
-                  onClose={() => setCenterTab('chat')}
-                  isActive={centerTab === 'pdf'}
-                />
+              <div className={`flex-1 flex flex-row min-h-0 w-full h-full ${centerTab === 'pdf' ? 'animate-in fade-in duration-200' : 'hidden'}`}>
+                <div className="flex-1 min-w-0 h-full relative">
+                  <PDFWorkspace
+                    documentId={documentId}
+                    onExplainSelection={handleExplainSelection}
+                    onExplainPage={handleExplainPage}
+                    onGenerateQuizPage={handleGenerateQuizPage}
+                    onGenerateFlashcardsPage={handleGenerateFlashcardsPage}
+                    onClose={() => setCenterTab('chat')}
+                    isActive={centerTab === 'pdf'}
+                    isChatAgentOpen={isPDFChatOpen}
+                    onToggleChatAgent={() => setIsPDFChatOpen(!isPDFChatOpen)}
+                    targetPage={pdfTargetPage}
+                    onClearTargetPage={() => setPdfTargetPage(null)}
+                  />
+                </div>
+                <AnimatePresence initial={false}>
+                  {isPDFChatOpen && (
+                    <motion.div
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: pdfChatWidth, opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={isResizing ? { duration: 0 } : { duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                      className="h-full shrink-0 z-10 py-3.5 pr-4 pl-1.5 flex flex-row overflow-hidden"
+                      style={{ width: pdfChatWidth }}
+                    >
+                      {/* Interactive Floating Drag Handle */}
+                      <div
+                        onMouseDown={startResizing}
+                        className="w-2.5 cursor-col-resize hover:bg-brand-green/10 active:bg-brand-green/20 transition-all shrink-0 z-20 flex items-center justify-center group relative h-[calc(100%-24px)] my-auto mr-2 rounded-full"
+                        title="Drag to resize chat"
+                      >
+                        <div className="w-[2px] h-12 bg-zinc-200/80 group-hover:bg-brand-green/45 group-active:bg-brand-green/60 rounded-full transition-colors" />
+                      </div>
+
+                      <div className="flex-1 h-full flex flex-col min-w-0">
+                        <PDFAgentChat
+                          documentId={documentId}
+                          sessionId={sessionId}
+                          messages={pdfChatMessages}
+                          setMessages={setPdfChatMessages}
+                          docTitle={docTitle}
+                          selectionToExplain={pdfSelectionToExplain}
+                          onClearSelectionToExplain={() => setPdfSelectionToExplain(null)}
+                          onScrollToPage={(pageNum) => setPdfTargetPage(pageNum)}
+                          onClose={() => setIsPDFChatOpen(false)}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* TAB: Chat */}
@@ -1034,9 +1118,9 @@ export default function SessionPage({ params }: SessionPageProps) {
                   {/* Processing state */}
                   {isProcessingDoc && (
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-6 animate-in fade-in duration-300">
-                      <div className="relative w-16 h-16 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full border-4 border-gray-100 border-t-brand-green animate-spin" />
-                        <Brain className="w-6 h-6 text-brand-green animate-pulse" />
+                      <div className="relative w-20 h-20 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full border-4 border-zinc-100 border-t-brand-green animate-spin" />
+                        <Logo size={42} className="animate-pulse object-contain" />
                       </div>
                       <div className="space-y-2">
                         <h3 className="font-extrabold text-brand-forest text-sm sm:text-base font-sans">Preparing your Study Workspace</h3>
@@ -1280,21 +1364,43 @@ export default function SessionPage({ params }: SessionPageProps) {
                             <Lock className="w-5 h-5 text-brand-lime stroke-[2.5px]" />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-brand-forest leading-snug font-sans">You&apos;ve reached your study limit</p>
-                            <p className="text-xs text-brand-forest/60 mt-0.5 leading-relaxed font-sans">Your AI study time resets{tokenResetTime ? ` around ${tokenResetTime}` : ' soon'}.</p>
+                            <p className="text-sm font-bold text-brand-forest leading-snug font-sans">
+                              {tokenLimitMessage ? tokenLimitMessage : "You've reached your study limit"}
+                            </p>
+                            {!tokenLimitMessage && (
+                              <p className="text-xs text-brand-forest/60 mt-0.5 leading-relaxed font-sans">
+                                Your AI study time resets{tokenResetTime ? ` around ${tokenResetTime}` : ' soon'}.
+                              </p>
+                            )}
                           </div>
                           <div className="w-full flex items-center gap-3 bg-white/50 border border-brand-green/20 rounded-full px-4 py-2.5 cursor-not-allowed opacity-70">
                             <Lock className="w-3.5 h-3.5 text-brand-green/50 shrink-0" />
-                            <span className="flex-1 text-xs text-brand-forest/40 font-medium text-left font-sans">Chat is locked until your limit resets&hellip;</span>
+                            <span className="flex-1 text-xs text-brand-forest/40 font-medium text-left font-sans">
+                              {tokenLimitMessage ? "Chat is locked for this document" : "Chat is locked until your limit resets..."}
+                            </span>
                           </div>
-                          <a href="/settings/billing" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-green text-brand-lime text-xs font-bold shadow-md shadow-brand-green/20 hover:bg-brand-forest hover:scale-[1.02] transition-all active:scale-[0.98] font-sans">
+                          <button
+                            type="button"
+                            onClick={() => setPricingModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-green text-brand-lime text-xs font-bold shadow-md shadow-brand-green/20 hover:bg-brand-forest hover:scale-[1.02] transition-all active:scale-[0.98] cursor-pointer font-sans"
+                          >
                             <Zap className="w-3.5 h-3.5 fill-brand-lime" />
                             Upgrade for more study time
-                          </a>
+                          </button>
                         </div>
                       </div>
                     ) : (
                       <>
+                        {user?.plan !== 'pro' && (
+                          <div className="flex justify-between items-center mb-1.5 px-2">
+                            <span className="text-[9px] font-black tracking-wider text-brand-green uppercase font-sans">
+                              Active Document Chat
+                            </span>
+                            <span className="text-[9px] font-black tracking-wide text-zinc-400 uppercase font-sans bg-zinc-100 px-2 py-0.5 rounded-full">
+                              {chatMessagesCount}/{user?.plan === 'plus' ? 60 : 20} messages
+                            </span>
+                          </div>
+                        )}
                         {/* Chat input form */}
                         <form onSubmit={handleSendMessageWrapper} className={`relative flex items-center rounded-[24px] px-3.5 py-1.5 transition-all gap-3 shadow-2xs border ${isProcessingDoc ? 'bg-zinc-50 border-zinc-150 cursor-not-allowed opacity-60' : 'bg-zinc-55 border-zinc-200/80 focus-within:bg-white focus-within:border-brand-green focus-within:ring-1 focus-within:ring-brand-green/20'}`}>
                           {/* Attachment Indicator on Left */}
@@ -1304,6 +1410,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                           </div>
                           
                           <input
+                            id="main-chat-input"
                             type="text"
                             required
                             value={input}
@@ -1391,116 +1498,110 @@ export default function SessionPage({ params }: SessionPageProps) {
               </div> {/* Closes TAB: Chat flex-row container */}
 
               {/* TAB: Quiz */}
-              {centerTab === 'quiz' && (
-                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
-                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
-                    <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 h-full flex flex-col justify-between">
-                      <PracticePanel
-                        quiz={quiz}
-                        selectedAnswers={selectedAnswers}
-                        setSelectedAnswers={setSelectedAnswers}
-                        loadingQuiz={loadingQuiz}
-                        submittingQuiz={submittingQuiz}
-                        quizResult={quizResult}
-                        quizWeakTopics={quizWeakTopics}
-                        onClose={() => setCenterTab('chat')}
-                        onGenerateQuiz={handleGenerateQuiz}
-                        onSubmitQuiz={handleQuizSubmit}
-                        isEmbed={true}
-                        isExam={isExamSession}
-                        onGradeQuestion={handleGradeQuestion}
-                        onExplainQuestion={handleExplainQuizQuestion}
-                        onReviewWeakTopic={handleReviewWeakTopic}
-                        topics={topics}
-                        onSwitchTab={(tab) => { setCenterTab(tab); setIsMobileNavOpen(false); }}
-                        onExamModeChange={(isExam) => setIsExamSession(isExam)}
-                        setQuiz={setQuiz}
-                        sessionQuizzes={sessionQuizzes}
-                        docTitle={docTitle}
-                        onLoadSavedQuiz={handleLoadSavedQuiz}
-                      />
-                    </div>
+              <div className={`flex-grow flex flex-col min-h-0 w-full h-full bg-white ${centerTab === 'quiz' ? 'flex animate-in fade-in duration-200' : 'hidden'}`}>
+                <div className="flex-grow flex flex-col min-h-0 bg-white py-4 sm:py-6 h-full">
+                  <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 h-full flex flex-col justify-between min-h-0">
+                    <PracticePanel
+                      quiz={quiz}
+                      selectedAnswers={selectedAnswers}
+                      setSelectedAnswers={setSelectedAnswers}
+                      loadingQuiz={loadingQuiz}
+                      submittingQuiz={submittingQuiz}
+                      quizResult={quizResult}
+                      quizWeakTopics={quizWeakTopics}
+                      onClose={() => setCenterTab('chat')}
+                      onGenerateQuiz={handleGenerateQuiz}
+                      onSubmitQuiz={handleQuizSubmit}
+                      isEmbed={true}
+                      isExam={isExamSession}
+                      onGradeQuestion={handleGradeQuestion}
+                      onExplainQuestion={handleExplainQuizQuestion}
+                      onReviewWeakTopic={handleReviewWeakTopic}
+                      topics={topics}
+                      onSwitchTab={(tab) => { setCenterTab(tab); setIsMobileNavOpen(false); }}
+                      onExamModeChange={(isExam) => setIsExamSession(isExam)}
+                      setQuiz={setQuiz}
+                      sessionQuizzes={sessionQuizzes}
+                      docTitle={docTitle}
+                      onLoadSavedQuiz={handleLoadSavedQuiz}
+                      initialInstructions={quizInitialInstructions}
+                      initialShowConfig={quizInitialShowConfig}
+                    />
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* TAB: Flashcards */}
-              {centerTab === 'flashcards' && (
-                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
-                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
-                    <div className="max-w-xl mx-auto w-full px-4 sm:px-6">
-                      <FlashcardsPanel
-                        flashcards={flashcards}
-                        flashcardCount={flashcardCount}
-                        setFlashcardCount={setFlashcardCount}
-                        flashcardFocus={flashcardFocus}
-                        setFlashcardFocus={setFlashcardFocus}
-                        flashcardLimitError={flashcardLimitError}
-                        isStreaming={isStreaming}
-                        isGeneratingFlashcards={isGeneratingFlashcards}
-                        handleCreateCustomFlashcards={handleCreateCustomFlashcards}
-                        currentFlashcardIdx={currentFlashcardIdx}
-                        setCurrentFlashcardIdx={setCurrentFlashcardIdx}
-                        isFlipped={isFlipped}
-                        setIsFlipped={setIsFlipped}
-                        onRateCard={handleRateConcept}
-                        onCreateNewDeck={() => setSelectedFlashcardDeckId('new')}
-                        parsedFlashcardDecks={parsedFlashcardDecks}
-                        selectedFlashcardDeckId={selectedFlashcardDeckId}
-                        onSelectDeck={setSelectedFlashcardDeckId}
-                        docTitle={docTitle}
-                      />
-                    </div>
+              <div className={`flex-grow flex flex-col min-h-0 w-full h-full bg-white ${centerTab === 'flashcards' ? 'flex animate-in fade-in duration-200' : 'hidden'}`}>
+                <div className="flex-grow flex flex-col min-h-0 bg-white py-4 sm:py-6 h-full">
+                  <div className="max-w-xl mx-auto w-full px-4 sm:px-6 h-full flex flex-col min-h-0">
+                    <FlashcardsPanel
+                      flashcards={flashcards}
+                      flashcardCount={flashcardCount}
+                      setFlashcardCount={setFlashcardCount}
+                      flashcardFocus={flashcardFocus}
+                      setFlashcardFocus={setFlashcardFocus}
+                      flashcardLimitError={flashcardLimitError}
+                      isStreaming={isStreaming}
+                      isGeneratingFlashcards={isGeneratingFlashcards}
+                      handleCreateCustomFlashcards={handleCreateCustomFlashcards}
+                      currentFlashcardIdx={currentFlashcardIdx}
+                      setCurrentFlashcardIdx={setCurrentFlashcardIdx}
+                      isFlipped={isFlipped}
+                      setIsFlipped={setIsFlipped}
+                      onRateCard={handleRateConcept}
+                      onCreateNewDeck={() => setSelectedFlashcardDeckId('new')}
+                      parsedFlashcardDecks={parsedFlashcardDecks}
+                      selectedFlashcardDeckId={selectedFlashcardDeckId}
+                      onSelectDeck={setSelectedFlashcardDeckId}
+                      docTitle={docTitle}
+                    />
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* TAB: Summary */}
-              {centerTab === 'summary' && (
-                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
-                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
-                    <div className="max-w-3xl mx-auto w-full px-4 sm:px-6">
-                      <SummaryPanel
-                        loadingSummary={loadingSummary}
-                        summaryError={summaryError}
-                        detailedSummary={detailedSummary}
-                        docTitle={docTitle}
-                        fetchDetailedSummary={fetchDetailedSummary}
-                      />
-                    </div>
+              <div className={`flex-grow flex flex-col min-h-0 w-full h-full bg-white ${centerTab === 'summary' ? 'flex animate-in fade-in duration-200' : 'hidden'}`}>
+                <div className="flex-grow flex flex-col min-h-0 bg-white py-4 sm:py-6 h-full">
+                  <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 h-full flex flex-col min-h-0">
+                    <SummaryPanel
+                      loadingSummary={loadingSummary}
+                      summaryError={summaryError}
+                      detailedSummary={detailedSummary}
+                      docTitle={docTitle}
+                      fetchDetailedSummary={fetchDetailedSummary}
+                    />
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* TAB: Concepts */}
-              {centerTab === 'concepts' && (
-                <div className="flex-grow flex flex-col min-h-0 bg-white animate-in fade-in duration-200">
-                  <div className="flex-grow overflow-y-auto min-h-0 bg-white py-6">
-                    <div className="max-w-4xl mx-auto w-full px-4 sm:px-6">
-                      <StudioPanel
-                        isProcessingDoc={isProcessingDoc}
-                        combinedItems={combinedItems}
-                        expandedGroups={expandedGroups}
-                        toggleGroup={toggleGroup}
-                        setSelectedNote={setSelectedNote}
-                        handleLoadSavedQuiz={handleLoadSavedQuiz}
-                        setSelectedFlashcardDeckId={setSelectedFlashcardDeckId}
-                        setCurrentFlashcardIdx={setCurrentFlashcardIdx}
-                        setIsFlipped={setIsFlipped}
-                        setRightPanelTab={setRightPanelTab}
-                        setActiveMobileTab={setActiveMobileTab}
-                        setShowRightPane={setShowRightPane}
-                        setIsAddNoteOpen={setIsAddNoteOpen}
-                        setIsExamSession={setIsExamSession}
-                        setQuiz={setQuiz}
-                        setQuizResult={setQuizResult}
-                        dueCount={dueCount}
-                        knowledgeCacheStatus={knowledgeCacheStatus}
-                      />
-                    </div>
+              <div className={`flex-grow flex flex-col min-h-0 w-full h-full bg-white ${centerTab === 'concepts' ? 'flex animate-in fade-in duration-200' : 'hidden'}`}>
+                <div className="flex-grow flex flex-col min-h-0 bg-white py-4 sm:py-6 h-full">
+                  <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 h-full flex flex-col min-h-0">
+                    <StudioPanel
+                      isProcessingDoc={isProcessingDoc}
+                      combinedItems={combinedItems}
+                      expandedGroups={expandedGroups}
+                      toggleGroup={toggleGroup}
+                      setSelectedNote={setSelectedNote}
+                      handleLoadSavedQuiz={handleLoadSavedQuiz}
+                      setSelectedFlashcardDeckId={setSelectedFlashcardDeckId}
+                      setCurrentFlashcardIdx={setCurrentFlashcardIdx}
+                      setIsFlipped={setIsFlipped}
+                      setRightPanelTab={setRightPanelTab}
+                      setActiveMobileTab={setActiveMobileTab}
+                      setShowRightPane={setShowRightPane}
+                      setIsAddNoteOpen={setIsAddNoteOpen}
+                      setIsExamSession={setIsExamSession}
+                      setQuiz={setQuiz}
+                      setQuizResult={setQuizResult}
+                      dueCount={dueCount}
+                      knowledgeCacheStatus={knowledgeCacheStatus}
+                    />
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>{/* end main content area */}

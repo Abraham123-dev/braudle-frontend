@@ -11,6 +11,7 @@ import DocumentCard, { Document } from '@/components/dashboard/DocumentCard';
 import UploadModal from '@/components/dashboard/UploadModal';
 import Header from '@/components/dashboard/Header';
 import ChatSidebar from '@/components/dashboard/ChatSidebar';
+import Logo from '@/components/Logo';
 import {
   LogOut, Search, Plus, Flame, Zap, BarChart3,
   BookOpen, Target, AlertTriangle, ArrowRight, Trophy,
@@ -645,8 +646,71 @@ function HomeLearningContent() {
 export default function HomeLearningPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-white flex items-center justify-center animate-pulse">
-        <div className="w-8 h-8 rounded-full border-4 border-gray-150 border-t-brand-green animate-spin" />
+      <div className="min-h-screen bg-[#F9FBFC] flex flex-col font-sans select-none animate-pulse">
+        {/* Mock Header skeleton */}
+        <header className="h-16 border-b border-zinc-100 bg-white/70 backdrop-blur-md shrink-0 flex items-center justify-between px-6 md:px-8">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-zinc-250" />
+            <div className="h-4 bg-zinc-250 rounded w-16" />
+          </div>
+          <div className="h-7 w-24 bg-zinc-200 rounded-full" />
+        </header>
+
+        {/* Mock Main Container */}
+        <main className="flex-1 max-w-6xl w-full mx-auto px-6 md:px-8 py-10 md:py-14 flex flex-col space-y-10">
+          {/* Section 1: Greeting & upload button */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-3">
+              <div className="h-8 md:h-12 bg-zinc-250 rounded-2xl w-56 md:w-80" />
+              <div className="h-4 bg-zinc-200 rounded-xl w-40 md:w-60" />
+            </div>
+            <div className="h-10 w-44 bg-zinc-200 rounded-full shrink-0" />
+          </div>
+
+          {/* Section 2: Study Dashboard Grid (3 columns) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="bg-white border border-zinc-200/50 rounded-[24px] p-5 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-zinc-200 shrink-0" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-3 bg-zinc-200 rounded w-16" />
+                  <div className="h-5 bg-zinc-200 rounded w-32" />
+                  <div className="h-3 bg-zinc-150 rounded w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Section 3: Daily Study Tip Banner */}
+          <div className="bg-white border border-zinc-200/50 rounded-2xl p-4 flex items-start gap-3">
+            <div className="w-5 h-5 rounded bg-zinc-200 shrink-0" />
+            <div className="space-y-2 flex-1">
+              <div className="h-3 bg-zinc-200 rounded w-20" />
+              <div className="h-4 bg-zinc-150 rounded w-3/4" />
+            </div>
+          </div>
+
+          {/* Section 4: Library section */}
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div className="h-4 bg-zinc-250 rounded w-28" />
+              <div className="h-8 w-28 bg-zinc-200 rounded-full" />
+            </div>
+
+            {/* Library Card Grid (4 cards) */}
+            <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="bg-white border border-zinc-200/50 rounded-[24px] p-5 aspect-[1.35/1] sm:aspect-[1.4/1] flex flex-col justify-between">
+                  <div className="w-9 h-9 rounded-xl bg-zinc-200 shrink-0" />
+                  <div className="space-y-2.5 mt-4">
+                    <div className="h-4 bg-zinc-200 rounded w-3/4" />
+                    <div className="h-3 bg-zinc-150 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     }>
       <HomeLearningContent />

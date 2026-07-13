@@ -167,6 +167,9 @@ export function useSession(sessionId: string) {
   // Token limit lock state
   const [isTokenLimited, setIsTokenLimited] = useState(false);
   const [tokenResetTime, setTokenResetTime] = useState<string | null>(null);
+  const [tokenLimitMessage, setTokenLimitMessage] = useState<string>('');
+  const [chatMessagesCount, setChatMessagesCount] = useState(0);
+  const [explainMessagesCount, setExplainMessagesCount] = useState(0);
 
   // Active session stream error & last prompt state
   const [activeSessionError, setActiveSessionError] = useState<{ message: string; errorId?: string | null } | null>(null);
@@ -204,6 +207,14 @@ export function useSession(sessionId: string) {
       if (sessionRes.session) {
         setActiveMode(sessionRes.session.mode || 'understand');
         
+        // Track message counts
+        if (sessionRes.chatMessagesCount !== undefined) {
+          setChatMessagesCount(sessionRes.chatMessagesCount);
+        }
+        if (sessionRes.explainMessagesCount !== undefined) {
+          setExplainMessagesCount(sessionRes.explainMessagesCount);
+        }
+
         // Track documentId
         const doc = sessionRes.session.documentId;
         if (doc) {
@@ -356,6 +367,7 @@ export function useSession(sessionId: string) {
     setStreamingContent('');
     setActiveSessionError(null);
 
+    let accumulatedText = '';
     try {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const streamUrl = `${backendUrl}/sessions/${sessionId}/chat`;
@@ -376,6 +388,7 @@ export function useSession(sessionId: string) {
           const resetAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           setIsTokenLimited(true);
           setTokenResetTime(resetAt);
+          setTokenLimitMessage(errorData.message || "You've reached today's AI study limit.");
           return; // Don't throw — we handle it via the lock UI
         }
         
@@ -390,7 +403,7 @@ export function useSession(sessionId: string) {
       if (!reader) return;
 
       let buffer = '';
-      let accumulatedText = '';
+      accumulatedText = '';
 
       while (true) {
         const { value, done } = await reader.read();
@@ -449,6 +462,9 @@ export function useSession(sessionId: string) {
         errorId: err.errorId || null
       });
     } finally {
+      if (accumulatedText) {
+        setChatMessagesCount(prev => prev + 1);
+      }
       setStreamingContent('');
       setIsStreaming(false);
       isStreamingRef.current = false;
@@ -462,6 +478,7 @@ export function useSession(sessionId: string) {
     setStreamingContent('');
     setActiveSessionError(null);
 
+    let accumulatedText = '';
     try {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const streamUrl = `${backendUrl}/sessions/${sessionId}/explain-selection`;
@@ -481,6 +498,7 @@ export function useSession(sessionId: string) {
           const resetAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           setIsTokenLimited(true);
           setTokenResetTime(resetAt);
+          setTokenLimitMessage(errorData.message || "You've reached today's AI study limit.");
           return;
         }
         
@@ -495,7 +513,7 @@ export function useSession(sessionId: string) {
       if (!reader) return;
 
       let buffer = '';
-      let accumulatedText = '';
+      accumulatedText = '';
 
       while (true) {
         const { value, done } = await reader.read();
@@ -543,6 +561,9 @@ export function useSession(sessionId: string) {
         errorId: err.errorId || null
       });
     } finally {
+      if (accumulatedText) {
+        setExplainMessagesCount(prev => prev + 1);
+      }
       setStreamingContent('');
       setIsStreaming(false);
       isStreamingRef.current = false;
@@ -645,6 +666,9 @@ export function useSession(sessionId: string) {
         answers: answersList
       });
       setQuizResult(result);
+      if (result.quiz) {
+        setQuiz(result.quiz);
+      }
       if (result.weakTopics) {
         setQuizWeakTopics(result.weakTopics);
       }
@@ -793,6 +817,9 @@ export function useSession(sessionId: string) {
     activeSuggestions,
     isTokenLimited,
     tokenResetTime,
+    tokenLimitMessage,
+    chatMessagesCount,
+    explainMessagesCount,
     activeSessionError,
     setActiveSessionError,
     triggerTutorStream,
