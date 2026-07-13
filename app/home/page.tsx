@@ -277,13 +277,13 @@ function HomeLearningContent() {
           </div>
 
           {/* ══════════════ MAIN ══════════════ */}
-          <main className="flex-1 max-w-6xl w-full mx-auto px-6 md:px-8 py-10 md:py-14 flex flex-col">
+          <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 md:py-12 flex flex-col">
 
             {/* ── SECTION 1: Greeting & Interactive Study Dashboard ── */}
             <div className="mb-10 text-left">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div>
-                  <h1 className="text-3xl md:text-5xl font-medium tracking-tight text-brand-forest leading-[1.15]">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight text-brand-forest leading-[1.15]">
                     {greeting}
                   </h1>
                   <p className="text-sm text-gray-400 font-medium mt-1.5">
@@ -305,7 +305,7 @@ function HomeLearningContent() {
 
               {/* Study Dashboard Grid (Borrowed from Quiz & Exam Spaces) */}
               {profile && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-6 animate-in fade-in duration-300">
                   {/* Streak Card */}
                   <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex items-center gap-4 hover:border-brand-green/20 transition-all duration-200">
                     <div className="relative shrink-0 flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-green/5 border border-brand-green/10">
@@ -379,7 +379,7 @@ function HomeLearningContent() {
                   )}
 
                   {/* Skill Insights Card */}
-                  <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex flex-col justify-between hover:border-brand-green/20 transition-all duration-200">
+                  <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-3xs flex flex-col justify-between hover:border-brand-green/20 transition-all duration-200 sm:col-span-2 lg:col-span-1">
                     <div className="space-y-2">
                       <span className="text-[9px] font-black tracking-wider bg-brand-forest text-brand-lime px-2 py-0.5 rounded border border-brand-forest/10 uppercase self-start inline-block">
                         Skill Insights
@@ -458,7 +458,7 @@ function HomeLearningContent() {
                   <Brain className="w-4 h-4 text-brand-green animate-pulse" />
                   <span>Revision Actions & Weak Spots</span>
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Weak Spot revisions */}
                   {recommendations?.weakSpots && recommendations.weakSpots.map((rec, idx) => (
                     <div key={`weak-${idx}`} className="bg-gradient-to-br from-white to-[#FAF6F2] border border-rose-100 rounded-3xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition-all relative overflow-hidden group">
@@ -558,7 +558,7 @@ function HomeLearningContent() {
               <div className="space-y-6">
                 {filteredDocuments.length > 0 ? (
                   <>
-                    <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5">
+                    <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-5">
                       {filteredDocuments.slice(0, 4).map((doc) => (
                         <DocumentCard
                           key={doc.id || doc._id}
@@ -657,7 +657,7 @@ export default function HomeLearningPage() {
         </header>
 
         {/* Mock Main Container */}
-        <main className="flex-1 max-w-6xl w-full mx-auto px-6 md:px-8 py-10 md:py-14 flex flex-col space-y-10">
+        <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 md:py-12 flex flex-col space-y-10">
           {/* Section 1: Greeting & upload button */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-3">
@@ -668,9 +668,9 @@ export default function HomeLearningPage() {
           </div>
 
           {/* Section 2: Study Dashboard Grid (3 columns) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="bg-white border border-zinc-200/50 rounded-[24px] p-5 flex items-center gap-4">
+              <div key={idx} className={`bg-white border border-zinc-200/50 rounded-[24px] p-5 flex items-center gap-4 ${idx === 2 ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
                 <div className="w-14 h-14 rounded-2xl bg-zinc-200 shrink-0" />
                 <div className="space-y-2 flex-1">
                   <div className="h-3 bg-zinc-200 rounded w-16" />
@@ -698,7 +698,7 @@ export default function HomeLearningPage() {
             </div>
 
             {/* Library Card Grid (4 cards) */}
-            <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5">
+            <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-5">
               {Array.from({ length: 4 }).map((_, idx) => (
                 <div key={idx} className="bg-white border border-zinc-200/50 rounded-[24px] p-5 aspect-[1.35/1] sm:aspect-[1.4/1] flex flex-col justify-between">
                   <div className="w-9 h-9 rounded-xl bg-zinc-200 shrink-0" />

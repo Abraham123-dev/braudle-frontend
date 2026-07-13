@@ -25,7 +25,7 @@ export default function Home() {
         
         {/* Final CTA Container */}
         <section className="px-6 md:px-8 mb-12 md:mb-24">
-          <div className="max-w-5xl mx-auto bg-brand-yellow py-12 lg:py-16 px-8 lg:px-12 relative overflow-hidden shadow-sm ">
+          <div className="max-w-5xl mx-auto bg-brand-yellow py-12 lg:py-16 px-5 sm:px-8 lg:px-12 relative overflow-hidden shadow-sm ">
              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12 text-center md:text-left">
               <div className="space-y-6 max-w-lg">
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-brand-forest tracking-tight leading-[1.1]">

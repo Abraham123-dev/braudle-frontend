@@ -50,6 +50,7 @@ export default function PDFWorkspace({
   const listRef = useRef<any>(null);
   const [visiblePage, setVisiblePage] = useState(1);
   const [actionLoading, setActionLoading] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1.0);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState({ height: 600, width: 320 });
@@ -105,7 +106,7 @@ export default function PDFWorkspace({
   }, [isActive]);
 
   const horizontalMargin = dimensions.width < 640 ? 16 : 48;
-  const targetWidth = dimensions.width - horizontalMargin;
+  const targetWidth = (dimensions.width - horizontalMargin) * zoomScale;
   const targetHeight = targetWidth * (pageSize.height / pageSize.width);
   const calculatedRowHeight = targetHeight + 36;
 
@@ -225,9 +226,9 @@ export default function PDFWorkspace({
           const page = await pdf.getPage(pageNum);
           if (!active) return;
 
-          // Calculate scale based on container dimensions
+          // Calculate scale based on container dimensions and zoom
           const horizontalMargin = dimensions.width < 640 ? 16 : 48;
-          const targetWidth = dimensions.width - horizontalMargin;
+          const targetWidth = (dimensions.width - horizontalMargin) * zoomScale;
           const computedScale = targetWidth / pageSize.width;
 
           const viewport = page.getViewport({ scale: computedScale });
@@ -290,18 +291,35 @@ export default function PDFWorkspace({
     }, [pdf, pageNum, pageSize, dimensions.width]);
 
     const horizontalMargin = dimensions.width < 640 ? 16 : 48;
-    const computedWidth = dimensions.width - horizontalMargin;
+    const computedWidth = (dimensions.width - horizontalMargin) * zoomScale;
 
     return (
       <div 
         {...ariaAttributes}
-        style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '24px' }}
+        style={{ 
+          ...style, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: zoomScale > 1.0 ? 'flex-start' : 'center', 
+          paddingBottom: '24px',
+          paddingLeft: zoomScale > 1.0 ? '16px' : '0px',
+          paddingRight: zoomScale > 1.0 ? '16px' : '0px'
+        }}
       >
-        <div className="mb-2 text-[10px] font-black text-zinc-400 select-none uppercase tracking-widest">
+        <div className="mb-2 text-[10px] font-black text-zinc-400 select-none uppercase tracking-widest self-center">
           Page {pageNum} of {pdf.numPages}
         </div>
         <div 
-          className="relative bg-white rounded-2xl overflow-hidden border border-zinc-200/50 shadow-2xs select-text max-w-full"
+          onClick={(e) => {
+            const selection = window.getSelection();
+            if (selection && selection.toString().trim().length > 0) {
+              return; // Do not zoom if text is being selected
+            }
+            setZoomScale(prev => prev > 1.0 ? 1.0 : 1.6);
+          }}
+          className={`relative bg-white rounded-2xl overflow-hidden border border-zinc-200/50 shadow-2xs select-text max-w-none ${
+            zoomScale > 1.0 ? 'cursor-zoom-out' : 'cursor-zoom-in'
+          }`}
           style={{ height: 'fit-content', width: computedWidth }}
         >
           <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 'auto' }} />
@@ -397,6 +415,29 @@ export default function PDFWorkspace({
         )}
       </div>
 
+      {/* Zoom Floating Controller */}
+      <div className="absolute top-4 left-4 z-40 flex items-center gap-1 bg-white/90 hover:bg-white border border-zinc-200/50 rounded-full p-1 shadow-3xs transition-all duration-150 select-none">
+        <button
+          onClick={() => setZoomScale(prev => Math.max(1.0, prev - 0.2))}
+          disabled={zoomScale <= 1.0}
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-zinc-100 text-zinc-650 disabled:opacity-30 disabled:hover:bg-transparent font-extrabold text-[15px] active:scale-90 transition-transform cursor-pointer"
+          title="Zoom Out"
+        >
+          －
+        </button>
+        <span className="text-[10px] font-black text-zinc-500 min-w-[32px] text-center tracking-wide">
+          {Math.round(zoomScale * 100)}%
+        </span>
+        <button
+          onClick={() => setZoomScale(prev => Math.min(2.2, prev + 0.2))}
+          disabled={zoomScale >= 2.2}
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-zinc-100 text-zinc-650 disabled:opacity-30 disabled:hover:bg-transparent font-extrabold text-[15px] active:scale-90 transition-transform cursor-pointer"
+          title="Zoom In"
+        >
+          ＋
+        </button>
+      </div>
+
       <div ref={containerRef} className="flex-grow overflow-hidden select-text w-full h-full max-w-full">
         {pdf && (
           <List
@@ -406,7 +447,7 @@ export default function PDFWorkspace({
             rowComponent={PageRow}
             rowProps={{}}
             className="scrollbar-thin py-4 animate-in fade-in duration-300"
-            style={{ height: '100%', width: '100%' }}
+            style={{ height: '100%', width: '100%', overflowX: 'auto' }}
             onRowsRendered={({ startIndex }) => {
               setVisiblePage(startIndex + 1);
             }}

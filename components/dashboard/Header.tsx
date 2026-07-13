@@ -70,22 +70,22 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
 
   return (
     <>
-      <header className="border-b border-gray-100 py-4 px-8 bg-white sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+      <header className="border-b border-gray-100 py-4 px-4 sm:px-6 md:px-8 bg-white sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2.5 sm:gap-4">
           
           {/* Logo & Navigation */}
-          <div className="flex items-center gap-6">
-            <Link href="/home" className="flex items-center gap-2 font-semibold text-xl tracking-tight text-brand-green">
+          <div className="flex items-center gap-2.5 sm:gap-6">
+            <Link href="/home" className="flex items-center gap-1.5 font-semibold text-lg sm:text-xl tracking-tight text-brand-green">
               <Logo size={24} className="shrink-0" />
-              <span>Braudle</span>
+              <span className="hidden min-[380px]:inline">Braudle</span>
             </Link>
-
+ 
             <div className="h-4 w-px bg-gray-100 hidden sm:block" />
-
+ 
             {/* Library Page Toggle Icon */}
             <Link 
               href="/library" 
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
+              className={`flex items-center gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all border ${
                 pathname === '/library' 
                   ? 'bg-brand-green/10 text-brand-green border-brand-green/10' 
                   : 'text-gray-400 hover:text-brand-forest hover:bg-gray-50 border-transparent'
@@ -95,13 +95,13 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Library</span>
             </Link>
-
+ 
             <div className="h-4 w-px bg-gray-100 hidden sm:block" />
-
+ 
             {/* Chat with Braudle Toggle Icon */}
             <Link 
               href={pathname === '/home' && searchParams.get('chat') === 'true' ? '/home' : '/home?chat=true'} 
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
+              className={`flex items-center gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all border ${
                 pathname === '/home' && searchParams.get('chat') === 'true'
                   ? 'bg-brand-green/10 text-brand-green border-brand-green/10' 
                   : 'text-gray-400 hover:text-brand-forest hover:bg-gray-50 border-transparent'
@@ -112,7 +112,7 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
               <span className="hidden sm:inline">AI Chat</span>
             </Link>
           </div>
-
+ 
           {/* Desktop search */}
           {setSearchQuery && (
             <div className="hidden md:flex items-center gap-2.5 px-4 py-2 bg-gray-50 border border-gray-100 rounded-full w-96 text-gray-400 focus-within:border-brand-green/30 focus-within:bg-white transition-all">
@@ -126,9 +126,9 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
               />
             </div>
           )}
-
+ 
           {/* Actions & Avatar Dropdown */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             
             {/* Upload Button */}
             <button
@@ -137,12 +137,12 @@ export default function Header({ searchQuery, setSearchQuery, onUploadClick }: H
             >
               <Plus className="w-4 h-4" /> Upload
             </button>
-
+ 
             {/* Mobile Upgrade CTA (Replaces Upload button on mobile for free users) */}
             {user && (user.plan === 'free' || !user.plan) && (
               <button
                 onClick={() => setPricingModalOpen(true)}
-                className="sm:hidden flex items-center gap-1 rounded-full bg-brand-lime py-2 px-4 text-xs font-bold text-brand-green hover:bg-brand-lime/90 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+                className="sm:hidden flex items-center gap-1 rounded-full bg-brand-lime py-1.5 px-3 text-xs font-bold text-brand-green hover:bg-brand-lime/90 transition-all cursor-pointer active:scale-[0.98] shadow-sm"
               >
                 Upgrade
               </button>

@@ -126,7 +126,7 @@ export default function LibraryPage() {
         </div>
 
         {/* ══════════════ MAIN ══════════════ */}
-        <main className="flex-1 max-w-6xl w-full mx-auto px-6 md:px-8 py-10 md:py-14 flex flex-col">
+        <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 md:py-12 flex flex-col">
           
           <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="text-left">
@@ -170,7 +170,7 @@ export default function LibraryPage() {
 
           {/* Notebooks List */}
           {loadingDocs ? (
-            <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5 animate-pulse">
+            <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-5 animate-pulse">
               {Array.from({ length: 4 }).map((_, idx) => (
                 <div key={idx} className="bg-gray-100/50 border border-gray-150 rounded-2xl p-5 aspect-[1.35/1] sm:aspect-[1.4/1] flex flex-col justify-between">
                   <div className="w-9 h-9 rounded-xl bg-gray-200 shrink-0" />
@@ -184,7 +184,7 @@ export default function LibraryPage() {
           ) : (
             <div className="space-y-6">
               {filteredDocuments.length > 0 ? (
-                <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:gap-5">
+                <div className="flex flex-col gap-3.5 sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-5">
                   {/* Create notebook (Mobile) */}
                   <div
                     onClick={() => setIsUploadOpen(true)}
