@@ -148,7 +148,7 @@ export default function PracticePanel({
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number>(15);
   const [revealStyle, setRevealStyle] = useState<'instant' | 'end'>('instant');
   const [examCountType, setExamCountType] = useState<'10' | '20' | '30' | 'custom'>('10');
-  const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string } | null>(null);
+  const [limitError, setLimitError] = useState<{ type: 'quiz' | 'exam'; remaining: string; plan: string } | null>(null);
   const [conceptFocus, setConceptFocus] = useState<string>('');
 
   const isCurrentQuizTypeActive = quiz && (!!quiz.isExam === !!isExam);
@@ -218,7 +218,7 @@ export default function PracticePanel({
     const cooldown = 86400000;
     timestamps = timestamps.filter(t => Date.now() - t < cooldown);
 
-    const limit = plan === 'free' ? 1 : 5;
+    const limit = plan === 'free' ? 1 : 10;
     if (timestamps.length >= limit) {
       const oldest = Math.min(...timestamps);
       const remainingMs = cooldown - (Date.now() - oldest);
@@ -1243,7 +1243,10 @@ export default function PracticePanel({
                   <div className="flex-1">
                     <p className="font-bold">Daily limit reached</p>
                     <p className="text-[10px] text-rose-500 mt-0.5 leading-relaxed">
-                      Free accounts can generate one {limitError.type} per day. Try again in <strong>{limitError.remaining}</strong>.
+                      {limitError.plan === 'plus'
+                        ? <>Plus accounts can generate 10 {limitError.type}s per day. Try again in <strong>{limitError.remaining}</strong>.</>
+                        : <>Free accounts can generate one {limitError.type} per day. Try again in <strong>{limitError.remaining}</strong>.</>
+                      }
                     </p>
                     <button
                       type="button"
@@ -1276,7 +1279,7 @@ export default function PracticePanel({
                 onClick={async () => {
                   const check = checkGenerationLimit(isExam ? 'exam' : 'quiz');
                   if (check.limited) {
-                    setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr });
+                    setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: check.remainingTimeStr, plan: user?.plan || 'free' });
                     return;
                   }
                   setShowConfigForm(false);
@@ -1311,7 +1314,7 @@ export default function PracticePanel({
                     const m = err.message || '';
                     if (err.status === 429 || m.toLowerCase().includes('limit') || m.toLowerCase().includes('cooldown') || m.toLowerCase().includes('available in')) {
                       const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
-                      setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h' });
+                      setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h', plan: user?.plan || 'free' });
                     } else {
                       alert(m || (isExam ? 'An unexpected error occurred while creating the exam.' : 'An unexpected error occurred while creating the quiz.'));
                     }

@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, use } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { useSession, ChatMessage } from '@/hooks/useSession';
+import { useSession, ChatMessage, parseMessageTags } from '@/hooks/useSession';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import PracticePanel from '@/components/quiz/PracticePanel';
@@ -375,6 +375,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         };
 
         setMessages(prev => [...prev, newMsgUser, newMsgAssistant]);
+        fetchFlashcardDecks();
       }
     } catch (err: any) {
       console.error('Failed to generate concept flashcards:', err);
@@ -403,7 +404,12 @@ export default function SessionPage({ params }: SessionPageProps) {
   };
 
   const handleExplainPage = async (pageNum: number, pageText: string) => {
-    const prompt = `Please explain the key concepts on Page ${pageNum} of the document:\n\n"${pageText.slice(0, 3000)}"`;
+    let prompt;
+    if (pageText === "this uploaded image") {
+      prompt = "Please explain the key concepts in this uploaded image notes.";
+    } else {
+      prompt = `Please explain the key concepts on Page ${pageNum} of the document:\n\n"${pageText.slice(0, 3000)}"`;
+    }
     if (centerTab === 'pdf') {
       setIsPDFChatOpen(true);
       setPdfSelectionToExplain({ text: prompt, timestamp: Date.now() });
@@ -421,15 +427,24 @@ export default function SessionPage({ params }: SessionPageProps) {
   const handleGenerateQuizPage = async (pageNum: number, pageText: string) => {
     setQuiz(null);
     setQuizResult(null);
-    setQuizInitialInstructions(`Focus exclusively on Page ${pageNum} content. `);
+    if (pageText === "this uploaded image") {
+      setQuizInitialInstructions(`Focus exclusively on the uploaded image content. `);
+    } else {
+      setQuizInitialInstructions(`Focus exclusively on Page ${pageNum} content. `);
+    }
     setQuizInitialShowConfig(true);
     setCenterTab('quiz');
     setActiveMobileTab('studio');
   };
 
   const handleGenerateFlashcardsPage = async (pageNum: number, pageText: string) => {
-    const firstLine = pageText.split('\n')[0] || '';
-    const cleanConceptName = `Page ${pageNum}: ${firstLine.slice(0, 80).trim()}`;
+    let cleanConceptName;
+    if (pageText === "this uploaded image") {
+      cleanConceptName = "image notes";
+    } else {
+      const firstLine = pageText.split('\n')[0] || '';
+      cleanConceptName = `Page ${pageNum}: ${firstLine.slice(0, 80).trim()}`;
+    }
     await handleMapStudyFlashcards(cleanConceptName);
   };
 
@@ -454,13 +469,9 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   const handleExplainQuizQuestion = (question: any, studentAnswer: string, correctAnswer: string) => {
     const userMessage = `I am taking a quiz on this material and was given this question: "${question.question}"\n\nI chose this as the answer: "${studentAnswer}"\n\nThat answer was incorrect. The correct answer is "${correctAnswer}".\n\nHelp me understand why my answer was incorrect.`;
-    setInput(userMessage);
     setCenterTab('chat');
     setActiveMobileTab('chat');
-    setTimeout(() => {
-      const sendBtn = document.getElementById('chat-send-btn');
-      sendBtn?.click();
-    }, 150);
+    handleSendMessage(undefined, userMessage);
   };
 
   // Flashcards state
@@ -485,40 +496,82 @@ export default function SessionPage({ params }: SessionPageProps) {
     return `${diffDays}d ago`;
   };
 
-  // Group and parse multiple flashcard decks dynamically from history
+  const [apiFlashcardDecks, setApiFlashcardDecks] = React.useState<Array<{ id: string; date: string; cards: FlashcardItem[] }>>([]);
+
+  const fetchFlashcardDecks = React.useCallback(async () => {
+    if (!documentId) return;
+    try {
+      const res = await api.get<{ status: string; decks: any[] }>(`/documents/${documentId}/flashcard-decks`);
+      if (res && res.decks) {
+        const formatted = res.decks.map((deck) => ({
+          id: deck._id,
+          date: deck.createdAt,
+          cards: deck.cards.map((c: any) => ({
+            topic: c.topic || 'General',
+            front: c.front,
+            back: c.back
+          }))
+        }));
+        setApiFlashcardDecks(formatted);
+      }
+    } catch (err) {
+      console.error('Failed to fetch flashcard decks:', err);
+    }
+  }, [documentId]);
+
+  React.useEffect(() => {
+    if (documentId) {
+      fetchFlashcardDecks();
+    }
+  }, [documentId, fetchFlashcardDecks]);
+
+  // Group and parse multiple flashcard decks dynamically from history and DB
   const parsedFlashcardDecks = React.useMemo(() => {
-    const decks: Array<{ id: string; date: string; cards: FlashcardItem[] }> = [];
+    const decks: Array<{ id: string; date: string; cards: FlashcardItem[] }> = [...apiFlashcardDecks];
     messages.forEach((msg, idx) => {
       if (msg.role === 'assistant') {
-        const lines = msg.content.split('\n');
-        const cards: FlashcardItem[] = [];
-        lines.forEach((line) => {
-          if (line.includes('FLASHCARD |')) {
-            const parts = line.split('|').map((p) => p.trim());
-            let topic = '';
-            let front = '';
-            let back = '';
-            parts.forEach((part) => {
-              if (part.startsWith('TOPIC:')) topic = part.replace('TOPIC:', '').trim();
-              if (part.startsWith('FRONT:')) front = part.replace('FRONT:', '').trim();
-              if (part.startsWith('BACK:')) back = part.replace('BACK:', '').trim();
-            });
-            if (front && back) {
-              cards.push({ topic: topic || 'General', front, back });
+        let cards: FlashcardItem[] = [];
+        if (msg.flashcards && msg.flashcards.length > 0) {
+          cards = msg.flashcards;
+        } else {
+          const lines = msg.content.split('\n');
+          lines.forEach((line) => {
+            if (line.includes('FLASHCARD |')) {
+              const parts = line.split('|').map((p) => p.trim());
+              let topic = '';
+              let front = '';
+              let back = '';
+              parts.forEach((part) => {
+                if (part.startsWith('TOPIC:')) topic = part.replace('TOPIC:', '').trim();
+                if (part.startsWith('FRONT:')) front = part.replace('FRONT:', '').trim();
+                if (part.startsWith('BACK:')) back = part.replace('BACK:', '').trim();
+              });
+              if (front && back) {
+                cards.push({ topic: topic || 'General', front, back });
+              }
             }
-          }
-        });
-        if (cards.length > 0) {
-          decks.push({
-            id: `deck-${idx}`,
-            date: msg.timestamp || new Date().toISOString(),
-            cards
           });
+        }
+
+        if (cards.length > 0) {
+          // Avoid duplicate entries if the API-fetched list already has this exact deck
+          const isDuplicate = decks.some(
+            (existing) =>
+              existing.cards.length === cards.length &&
+              existing.cards[0]?.front === cards[0]?.front
+          );
+          if (!isDuplicate) {
+            decks.push({
+              id: `deck-${idx}`,
+              date: msg.timestamp || new Date().toISOString(),
+              cards
+            });
+          }
         }
       }
     });
     return decks;
-  }, [messages]);
+  }, [apiFlashcardDecks, messages]);
 
   // Load saved quiz helper
   const handleLoadSavedQuiz = (q: any) => {
@@ -707,26 +760,19 @@ export default function SessionPage({ params }: SessionPageProps) {
 
   // Concept Click action
   const handleConceptClick = (topicName: string) => {
-    setInput(`Explain the concept of ${topicName} in detail.`);
+    setCenterTab('chat');
     setActiveMobileTab('chat');
-    setTimeout(() => {
-      const sendBtn = document.getElementById('chat-send-btn');
-      sendBtn?.click();
-    }, 150);
+    handleSendMessage(undefined, `Explain the concept of ${topicName} in detail.`);
   };
 
-  // Review Weak Topic from quiz results â€” switches to chat and auto-sends a focused tutoring request
+  // Review Weak Topic from quiz results — switches to chat and auto-sends a focused tutoring request
   const handleReviewWeakTopic = (topicName: string) => {
     setRightPanelTab('studio');
     setShowRightPane(false);
     setCenterTab('chat');
     setActiveMobileTab('chat');
     const reviewMessage = `I just finished a quiz and I struggled with "${topicName}". Can you teach me this concept step by step, check my understanding with a question, and correct any misconceptions?`;
-    setInput(reviewMessage);
-    setTimeout(() => {
-      const sendBtn = document.getElementById('chat-send-btn');
-      sendBtn?.click();
-    }, 200);
+    handleSendMessage(undefined, reviewMessage);
   };
 
   const handleCreateCustomFlashcards = async (count: number, focus: string) => {
@@ -752,7 +798,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         const cooldown = 24 * 60 * 60 * 1000;
         timestamps = timestamps.filter(t => Date.now() - t < cooldown);
 
-        const limit = userPlan === 'free' ? 1 : 5;
+        const limit = userPlan === 'free' ? 1 : 10;
         if (timestamps.length >= limit) {
           const oldest = Math.min(...timestamps);
           const remainingMs = cooldown - (Date.now() - oldest);
@@ -772,37 +818,60 @@ export default function SessionPage({ params }: SessionPageProps) {
     }
 
     setIsGeneratingFlashcards(true);
+    setFlashcardLimitError(null);
     try {
       await handleModeChange('flashcards', true);
-      const userText = `Please generate exactly ${count} flashcards from our study materials.${
-        focus.trim() ? ` Custom focus instructions: "${focus.trim()}"` : ''
-      }`;
-      setFlashcards([]);
-      setCurrentFlashcardIdx(0);
-      setIsFlipped(false);
+      const response = await api.post<{ status: string; flashcards: FlashcardItem[]; deck?: any }>(
+        `/documents/${documentId}/concept-flashcards`,
+        { conceptName: focus.trim() || 'General', sessionId, count }
+      );
       
-      const lastGenTimeStr = localStorage.getItem(`braudle_last_generated_flashcards_${userId}`);
-      let timestamps: number[] = [];
-      if (lastGenTimeStr) {
+      if (response && Array.isArray(response.flashcards)) {
+        setFlashcards(response.flashcards);
+        setCurrentFlashcardIdx(0);
+        setIsFlipped(false);
+        const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
+        const historyMessages = (sessionRes.messages || []).map(parseMessageTags);
+        setMessages(historyMessages);
+        
+        if (response.deck && response.deck._id) {
+          setSelectedFlashcardDeckId(response.deck._id);
+        } else {
+          const newDeckIdx = historyMessages.length - 1;
+          setSelectedFlashcardDeckId(`deck-${newDeckIdx}`);
+        }
+
+        // Reset session mode back to 'understand' so subsequent chat messages
+        // are not intercepted as flashcard requests by the backend.
+        await handleModeChange('understand', true);
+
+        // Fetch latest saved decks from backend
+        fetchFlashcardDecks();
+      }
+      
+      const lastGenTimeStr2 = localStorage.getItem(`braudle_last_generated_flashcards_${userId}`);
+      let timestamps2: number[] = [];
+      if (lastGenTimeStr2) {
         try {
-          timestamps = JSON.parse(lastGenTimeStr);
-          if (!Array.isArray(timestamps)) {
-            timestamps = [Number(lastGenTimeStr)];
+          timestamps2 = JSON.parse(lastGenTimeStr2);
+          if (!Array.isArray(timestamps2)) {
+            timestamps2 = [Number(lastGenTimeStr2)];
           }
         } catch {
-          timestamps = [Number(lastGenTimeStr)];
+          timestamps2 = [Number(lastGenTimeStr2)];
         }
       }
-      timestamps.push(Date.now());
-      localStorage.setItem(`braudle_last_generated_flashcards_${userId}`, JSON.stringify(timestamps));
-
-      setInput(userText);
-      setTimeout(() => {
-        const sendBtn = document.getElementById('chat-send-btn');
-        sendBtn?.click();
-      }, 150);
-    } catch (e) {
-      console.error(e);
+      timestamps2.push(Date.now());
+      localStorage.setItem(`braudle_last_generated_flashcards_${userId}`, JSON.stringify(timestamps2));
+    } catch (err: any) {
+      console.error(err);
+      const m = err.message || '';
+      if (err.status === 429 || m.toLowerCase().includes('limit') || m.toLowerCase().includes('cooldown') || m.toLowerCase().includes('available in')) {
+        const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
+        setFlashcardLimitError(match ? match[1] : '24h');
+      } else {
+        alert(m || 'An unexpected error occurred while creating custom flashcards.');
+      }
     } finally {
       setIsGeneratingFlashcards(false);
     }
@@ -1162,7 +1231,14 @@ export default function SessionPage({ params }: SessionPageProps) {
                   )}
 
                   {/* Message log */}
-                  {messages.map((msg, index) => (
+                  {messages
+                    .filter((msg) => {
+                      const contentLower = msg.content.toLowerCase();
+                      const isFcRequest = msg.role === 'user' && contentLower.includes('please generate exactly') && contentLower.includes('flashcards');
+                      const isFcResponse = msg.role === 'assistant' && (msg.content.includes('FLASHCARD |') || (msg.flashcards && msg.flashcards.length > 0));
+                      return !isFcRequest && !isFcResponse;
+                    })
+                    .map((msg, index) => (
                     <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                       {msg.role === 'system' ? (
                         <div className="bg-gray-50 text-[11px] font-bold tracking-wide uppercase text-gray-400 px-4 py-1.5 rounded-full border border-gray-100 text-center mx-auto select-none font-sans">
@@ -1308,8 +1384,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                             type="button"
                             onClick={() => {
                               if (pill.id.startsWith('dyn-')) {
-                                setInput(pill.label);
-                                setTimeout(() => document.getElementById('chat-send-btn')?.click(), 50);
+                                handleSendMessage(undefined, pill.label);
                               } else if (pill.id.startsWith('concept-')) {
                                 handleConceptClick(pill.label.replace(/^ðŸ” Explain /, ''));
                               } else if (pill.id === 'explain') {
@@ -1554,6 +1629,7 @@ export default function SessionPage({ params }: SessionPageProps) {
                       parsedFlashcardDecks={parsedFlashcardDecks}
                       selectedFlashcardDeckId={selectedFlashcardDeckId}
                       onSelectDeck={setSelectedFlashcardDeckId}
+          
                       docTitle={docTitle}
                     />
                   </div>

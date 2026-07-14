@@ -287,7 +287,7 @@ export default function SessionRail({
                 isExpanded ? 'opacity-100 max-w-[150px]' : 'opacity-0 max-w-0 pointer-events-none'
               }`}>
                 <p className="text-xs font-bold text-brand-forest truncate font-sans">
-                  {user?.name || user?.email?.split('@')[0] || 'Student Guest'}
+                  {user?.name || user?.email?.split('@')[0]}
                 </p>
               </div>
             </div>

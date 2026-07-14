@@ -18,7 +18,7 @@ export interface ChatMessage {
   flashcards?: any[];
 }
 
-function parseMessageTags(msg: ChatMessage): ChatMessage {
+export function parseMessageTags(msg: ChatMessage): ChatMessage {
   if (msg.role !== 'assistant') return msg;
 
   let content = msg.content;
@@ -225,7 +225,7 @@ export function useSession(sessionId: string) {
         // Client-side backup enforcement for the document chat limit
         const plan = user?.plan || 'free';
         if (plan !== 'pro' && sessionRes.chatMessagesCount !== undefined) {
-          const chatLimit = plan === 'free' ? 20 : 60;
+          const chatLimit = plan === 'free' ? 20 : 80;
           if (sessionRes.chatMessagesCount >= chatLimit) {
             setIsTokenLimited(true);
             if (!sessionRes.tokenLimitMessage) {
@@ -448,10 +448,19 @@ export function useSession(sessionId: string) {
                 accumulatedText += parsed.token;
                 
                 // Clean dynamic tags out of active streaming view
-                let cleanStream = accumulatedText;
-                cleanStream = cleanStream.split('[SUGGESTIONS:')[0];
-                cleanStream = cleanStream.split('[QUIZ_QUESTION:')[0];
-                setStreamingContent(cleanStream.trim());
+                let cleanStream = accumulatedText.trim();
+                if (cleanStream.startsWith('{')) {
+                  const messageMatch = cleanStream.match(/"message"\s*:\s*"([^"]*)"/);
+                  if (messageMatch) {
+                    setStreamingContent(messageMatch[1]);
+                  } else {
+                    setStreamingContent("⚡ Creating your custom flashcards...");
+                  }
+                } else {
+                  cleanStream = cleanStream.split('[SUGGESTIONS:')[0];
+                  cleanStream = cleanStream.split('[QUIZ_QUESTION:')[0];
+                  setStreamingContent(cleanStream.trim());
+                }
               } else if (parsed.error) {
                 const err: any = new Error(parsed.error);
                 err.errorId = parsed.errorId || null;
@@ -486,7 +495,7 @@ export function useSession(sessionId: string) {
           const nextCount = prev + 1;
           const plan = user?.plan || 'free';
           if (plan !== 'pro') {
-            const chatLimit = plan === 'free' ? 20 : 60;
+            const chatLimit = plan === 'free' ? 20 : 80;
             if (nextCount >= chatLimit) {
               setIsTokenLimited(true);
               setTokenLimitMessage(`You've reached your ${plan} plan limit of ${chatLimit} chat messages for this document.`);
@@ -600,11 +609,11 @@ export function useSession(sessionId: string) {
     }
   };
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const handleSendMessage = (e?: React.FormEvent, customMessage?: string) => {
     if (e) e.preventDefault();
-    if (!input.trim() || isStreaming) return;
+    const userText = customMessage !== undefined ? customMessage : input.trim();
+    if (!userText || isStreaming) return;
 
-    const userText = input.trim();
     setInput('');
     setActiveSessionError(null);
     setLastSentMessage(userText);

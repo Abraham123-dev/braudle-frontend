@@ -43,6 +43,8 @@ export default function PDFWorkspace({
   onClearTargetPage
 }: PDFWorkspaceProps) {
   const [pdf, setPdf] = useState<any>(null);
+  const [docType, setDocType] = useState<'pdf' | 'image'>('pdf');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,9 +129,17 @@ export default function PDFWorkspace({
 
         // Fetch secure pre-signed R2 URL from backend
         const response: any = await api.get(`/documents/${documentId}/view`);
-        const { viewUrl } = response;
+        const { viewUrl, type } = response;
 
         if (!active) return;
+
+        setDocType(type || 'pdf');
+
+        if (type === 'image') {
+          setImageUrl(viewUrl);
+          setIsLoading(false);
+          return;
+        }
 
         const loadingTask = pdfjs.getDocument({
           url: viewUrl,
@@ -367,6 +377,24 @@ export default function PDFWorkspace({
   }
 
   const handleActivePageAction = async (action: 'explain' | 'quiz' | 'flashcards') => {
+    if (docType === 'image') {
+      try {
+        setActionLoading(true);
+        if (action === 'explain' && onExplainPage) {
+          onExplainPage(1, "this uploaded image");
+        } else if (action === 'quiz' && onGenerateQuizPage) {
+          onGenerateQuizPage(1, "this uploaded image");
+        } else if (action === 'flashcards' && onGenerateFlashcardsPage) {
+          onGenerateFlashcardsPage(1, "this uploaded image");
+        }
+      } catch (err) {
+        console.error(`[PDF WORKSPACE] Failed to run image action ${action}:`, err);
+      } finally {
+        setActionLoading(false);
+      }
+      return;
+    }
+
     if (!pdf) return;
     try {
       setActionLoading(true);
@@ -439,27 +467,46 @@ export default function PDFWorkspace({
       </div>
 
       <div ref={containerRef} className="flex-grow overflow-hidden select-text w-full h-full max-w-full">
-        {pdf && (
-          <List
-            listRef={listRef}
-            rowCount={pdf.numPages}
-            rowHeight={calculatedRowHeight}
-            rowComponent={PageRow}
-            rowProps={{}}
-            className="scrollbar-thin py-4 animate-in fade-in duration-300"
-            style={{ height: '100%', width: '100%', overflowX: 'auto' }}
-            onRowsRendered={({ startIndex }) => {
-              setVisiblePage(startIndex + 1);
-            }}
-          />
+        {docType === 'image' && imageUrl ? (
+          <div className="w-full h-full flex items-center justify-center p-4 overflow-auto scrollbar-thin">
+            <div 
+              className="relative bg-white rounded-2xl overflow-hidden border border-zinc-200/50 shadow-2xs"
+              style={{
+                width: zoomScale > 1.0 ? '100%' : '85%',
+                maxWidth: zoomScale > 1.0 ? '160%' : '100%',
+                transition: 'width 0.2s ease-in-out'
+              }}
+            >
+              <img 
+                src={imageUrl} 
+                alt={docTitle} 
+                className="w-full h-auto object-contain select-none pointer-events-none"
+              />
+            </div>
+          </div>
+        ) : (
+          pdf && (
+            <List
+              listRef={listRef}
+              rowCount={pdf.numPages}
+              rowHeight={calculatedRowHeight}
+              rowComponent={PageRow}
+              rowProps={{}}
+              className="scrollbar-thin py-4 animate-in fade-in duration-300"
+              style={{ height: '100%', width: '100%', overflowX: 'auto' }}
+              onRowsRendered={({ startIndex }) => {
+                setVisiblePage(startIndex + 1);
+              }}
+            />
+          )
         )}
       </div>
 
       {/* Floating Active Page Action Tray */}
-      {pdf && (
+      {(pdf || docType === 'image') && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-zinc-900/95 backdrop-blur-md text-white rounded-full py-1.5 pl-4 pr-1.5 flex items-center gap-3.5 shadow-lg border border-zinc-700/80 select-none animate-in fade-in slide-in-from-bottom-4 duration-300">
           <span className="text-[10px] font-black uppercase tracking-wider text-zinc-300 shrink-0">
-            Page {visiblePage} of {pdf.numPages}
+            {docType === 'image' ? 'Image Workspace' : `Page ${visiblePage} of ${pdf.numPages}`}
           </span>
           
           <span className="w-[1px] h-4 bg-zinc-700 shrink-0" />
