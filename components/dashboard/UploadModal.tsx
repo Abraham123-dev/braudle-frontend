@@ -200,7 +200,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
               // Resubscribe after a short delay
               setTimeout(() => {
                 pollIngestionStatus(docId).then(resolve).catch(reject);
-              }, 2500);
+              }, 500);
             }
           })
           .catch(() => {
@@ -229,23 +229,27 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     let uploadTimer: any = null;
 
     try {
-      // Compute SHA-256 file hash for instant deduplication check
-      const buffer = await file.arrayBuffer();
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
+      // Run hash computation and presigned URL request in parallel for max speed.
+      // The hash is needed for deduplication — if we computed it first, we'd stall
+      // the entire upload pipeline for ~200-400ms on large PDFs before even hitting
+      // the network. Instead we send the request optimistically while hashing in parallel,
+      // then the backend uses the hash for dedup on the confirm-upload step.
       setUnifiedProgress(8);
       setUnifiedStageLabel('Checking workspace cache...');
 
-      // 1. Request presigned upload URL from backend with pre-computed fileHash
-      const presignRes = await api.post<{ uploadUrl?: string; documentId: string; cached?: boolean }>('/documents/presigned-url', {
-        filename: file.name,
-        contentType: file.type,
-        title: title.trim(),
-        subject: subject.trim() || 'General',
-        fileHash,
-      });
+      const [buffer, presignRes] = await Promise.all([
+        file.arrayBuffer(),
+        api.post<{ uploadUrl?: string; documentId: string; cached?: boolean }>('/documents/presigned-url', {
+          filename: file.name,
+          contentType: file.type,
+          title: title.trim(),
+          subject: subject.trim() || 'General',
+        }),
+      ]);
+
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
       if (!presignRes.documentId) {
         throw new Error('Failed to get upload authorization from server.');
@@ -308,9 +312,10 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
         throw new Error('Direct-to-cloud file streaming failed.');
       }
 
-      // 3. Confirm completed upload to start backend parser ingestion
+      // 3. Confirm completed upload to start backend parser ingestion (include hash for dedup)
       await api.post('/documents/confirm-upload', {
-        documentId
+        documentId,
+        fileHash,
       });
 
       setUnifiedProgress(48);
