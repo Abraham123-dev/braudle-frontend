@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, AlertCircle, MoreVertical, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 
 export interface Document {
   id: string;
@@ -129,7 +130,7 @@ export default function DocumentCard({ doc, onStartSession, onDeleteSuccess }: D
         onDeleteSuccess();
       }
     } catch (err: any) {
-      alert(`Failed to delete notebook: ${err.message}`);
+      toast.error('Failed to delete notebook. Please try again.');
     } finally {
       setDeleting(false);
     }

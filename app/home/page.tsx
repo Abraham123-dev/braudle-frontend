@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { auth } from '@/lib/auth';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 import DocumentCard, { Document } from '@/components/dashboard/DocumentCard';
 import UploadModal from '@/components/dashboard/UploadModal';
 import Header from '@/components/dashboard/Header';
@@ -148,17 +149,45 @@ function HomeLearningContent() {
     fetchRecommendations();
   }, []);
 
-  // Poll for document status if any are pending/processing
+  // Poll for document status if any are pending/processing.
+  // Uses a stable ref-based interval registered once — avoids stacking intervals
+  // caused by re-running the effect every time `documents` state changes.
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
+    const startPolling = () => {
+      if (pollingRef.current) return; // already running
+      pollingRef.current = setInterval(() => {
+        // Read latest documents directly from state via a ref to avoid stale closure
+        setDocuments(prev => {
+          const hasProcessing = prev.some(
+            (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
+          );
+          if (hasProcessing) {
+            fetchDocuments(false);
+          } else {
+            // All done — clear interval
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+          }
+          return prev;
+        });
+      }, 8000); // 8s is responsive enough and halves server load vs 4s
+    };
+
     const hasProcessing = documents.some(
       (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
     );
-    if (!hasProcessing) return;
-    const interval = setInterval(() => {
-      fetchDocuments(false);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [documents]);
+    if (hasProcessing) startPolling();
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, []); // ← registered once on mount only
 
   // Update dynamic time-of-day greeting
   useEffect(() => {
@@ -201,7 +230,7 @@ function HomeLearningContent() {
         router.push(`/session/${res.sessionId}`);
       }
     } catch (err: any) {
-      alert(`Failed to start session: ${err.message}`);
+      toast.error('Failed to start session. Please try again.');
     } finally {
       setStartingSession(false);
     }

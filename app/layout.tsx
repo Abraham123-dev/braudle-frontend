@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import NetworkStatusObserver from "@/components/NetworkStatusObserver";
+import ToastProvider from "@/components/ToastProvider";
 
 export const metadata: Metadata = {
   title: "Braudle | Your AI Tutor",
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         {children}
         <NetworkStatusObserver />
+        <ToastProvider />
       </body>
     </html>
   );

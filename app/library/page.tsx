@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 import Header from '@/components/dashboard/Header';
 import DocumentCard, { Document } from '@/components/dashboard/DocumentCard';
 import UploadModal from '@/components/dashboard/UploadModal';
@@ -45,17 +46,42 @@ export default function LibraryPage() {
     fetchDocuments(true);
   }, []);
 
-  // Poll for document status if any are pending/processing
+  // Poll for document status if any are pending/processing.
+  // Stable ref-based interval — registered once, not re-stacked on state changes.
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
+    const startPolling = () => {
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(() => {
+        setDocuments(prev => {
+          const hasProcessing = prev.some(
+            (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
+          );
+          if (hasProcessing) {
+            fetchDocuments(false);
+          } else {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+          }
+          return prev;
+        });
+      }, 8000);
+    };
+
     const hasProcessing = documents.some(
       (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
     );
-    if (!hasProcessing) return;
-    const interval = setInterval(() => {
-      fetchDocuments(false);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [documents]);
+    if (hasProcessing) startPolling();
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, []);
 
   const handleStartSession = async (docId: string, mode: 'teach' | 'quiz') => {
     try {
@@ -68,7 +94,7 @@ export default function LibraryPage() {
         router.push(`/session/${res.sessionId}`);
       }
     } catch (err: any) {
-      alert(`Failed to start session: ${err.message}`);
+      toast.error('Failed to start session. Please try again.');
     } finally {
       setStartingSession(false);
     }

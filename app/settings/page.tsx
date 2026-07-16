@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 import { auth } from '@/lib/auth';
 import Header from '@/components/dashboard/Header';
 import { 
@@ -110,7 +111,7 @@ export default function SettingsPage() {
       setAvatarFile(null);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      alert(`Failed to save settings: ${err.message}`);
+      toast.error('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
     }

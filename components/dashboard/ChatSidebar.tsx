@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api, fetchWithRefresh } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { toast } from '@/lib/toast';
 import MarkdownRenderer from '../tutor/MarkdownRenderer';
 import Logo from '@/components/Logo';
 
@@ -255,7 +256,7 @@ export default function ChatSidebar({ isOpen, onClose }: ChatSidebarProps) {
       }
     } catch (err: any) {
       console.error('[CHAT] Immediate analysis error:', err);
-      alert('Failed to analyze image: ' + (err.message || 'Connection failed.'));
+      toast.error('Failed to analyze image. Please try again.');
       setSelectedFile(null);
       setAnalyzedImage(null);
     } finally {
@@ -272,11 +273,11 @@ export default function ChatSidebar({ isOpen, onClose }: ChatSidebarProps) {
       const isImage = file.type.startsWith('image/') || isImgExt;
       
       if (!isImage) {
-        alert('Only image files are allowed in General Chat. PDFs can be studied in your Library.');
+        toast.info('Only image files are allowed in General Chat. PDFs can be studied in your Library.');
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        alert('Image size exceeds the 10MB limit.');
+        toast.warning('Image size exceeds the 10MB limit.');
         return;
       }
       setSelectedFile(file);
@@ -405,9 +406,13 @@ export default function ChatSidebar({ isOpen, onClose }: ChatSidebarProps) {
       } else if (err.code === 'CONVERSATION_LIMIT_EXCEEDED') {
         setIsConversationLocked(true);
       } else {
+        let displayError = '⚠️ Something went wrong on our end. Please try again in a moment.';
+        if (!err.status || err.message.toLowerCase().includes('connect') || err.message.toLowerCase().includes('internet') || err.message.toLowerCase().includes('network')) {
+          displayError = '⚠️ Connection failed. Please check your internet connection and try again.';
+        }
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `⚠️ Error: ${err.message || 'Connection failed.'}` }
+          { role: 'assistant', content: displayError }
         ]);
       }
     } finally {

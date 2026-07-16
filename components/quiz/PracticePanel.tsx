@@ -5,6 +5,7 @@ import { AlertCircle, FileQuestion, Loader2, Clock, BookOpen, RotateCcw, Message
 import { Quiz, Question, WeakTopic } from '@/hooks/useSession';
 import { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
 import { useStore } from '@/lib/store';
+import { toast } from '@/lib/toast';
 import Logo from '@/components/Logo';
 
 /* ─── Utility helpers ─────────────────────────────────────────── */
@@ -972,7 +973,7 @@ export default function PracticePanel({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => alert("Configure your custom study parameters below. You can focus on specific topics, adjust question count, and set difficulty.")}
+                  onClick={() => toast.info("Configure your custom study parameters below. You can focus on specific topics, adjust question count, and set difficulty.")}
                   className="w-8 h-8 rounded-full border border-zinc-200 hover:bg-zinc-50 flex items-center justify-center text-zinc-400 hover:text-zinc-650 transition-all cursor-pointer"
                 >
                   <span className="text-sm font-bold">?</span>
@@ -1316,7 +1317,7 @@ export default function PracticePanel({
                       const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
                       setLimitError({ type: isExam ? 'exam' : 'quiz', remaining: match ? match[1] : '24h', plan: user?.plan || 'free' });
                     } else {
-                      alert(m || (isExam ? 'An unexpected error occurred while creating the exam.' : 'An unexpected error occurred while creating the quiz.'));
+                      toast.error(m || (isExam ? 'An unexpected error occurred while creating the exam.' : 'An unexpected error occurred while creating the quiz.'));
                     }
                   }
                 }}

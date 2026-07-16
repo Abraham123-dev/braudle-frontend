@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 export const Pricing = () => {
   const { user, setUser, setPricingModalOpen } = useStore();
@@ -93,11 +94,11 @@ export const Pricing = () => {
           localStorage.setItem("braudle_user", JSON.stringify(verifyRes.data.user));
           setSuccessPlan(planKey);
         } else {
-          alert("Payment verification succeeded, but user data failed to update. Please refresh the page.");
+          toast.warning("Payment verification succeeded, but user data failed to update. Please refresh the page.");
         }
       } catch (verifyError: any) {
         console.error("Verification failed:", verifyError);
-        alert(`Payment succeeded, but verification failed: ${verifyError.message || "Please contact support."}`);
+        toast.error("Payment succeeded, but verification failed. Please contact support if your plan is not updated.");
       }
     };
 
@@ -112,12 +113,12 @@ export const Pricing = () => {
           handleVerification(response.reference);
         },
         onClose: function() {
-          alert("Payment window closed.");
+          toast.info("Payment window closed.");
         },
       });
       handler.openIframe();
     } catch (err: any) {
-      alert(`Could not open checkout popup: ${err.message}`);
+      toast.error("Could not open checkout page. Please try again.");
     } finally {
       setIsPaying(null);
     }

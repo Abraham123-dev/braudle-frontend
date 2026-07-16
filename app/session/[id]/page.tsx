@@ -4,6 +4,7 @@ import React, { useRef, useEffect, use } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useSession, ChatMessage, parseMessageTags } from '@/hooks/useSession';
 import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 import { useStore } from '@/lib/store';
 import PracticePanel from '@/components/quiz/PracticePanel';
 import MarkdownRenderer, { renderInlineContent } from '@/components/tutor/MarkdownRenderer';
@@ -382,7 +383,7 @@ export default function SessionPage({ params }: SessionPageProps) {
       if (err.message && (err.message.includes('limit') || err.message.includes('cooldown'))) {
         setFlashcardLimitError('Limit reached. Please retry tomorrow.');
       } else {
-        alert(err.message || 'Failed to auto-create concept flashcards.');
+        toast.error('An error occurred while creating concept flashcards. Please try again.');
       }
     } finally {
       setIsGeneratingFlashcards(false);
@@ -821,7 +822,7 @@ export default function SessionPage({ params }: SessionPageProps) {
     setFlashcardLimitError(null);
     try {
       await handleModeChange('flashcards', true);
-      const response = await api.post<{ status: string; flashcards: FlashcardItem[]; deck?: any }>(
+      const response = await api.post<{ status: string; flashcards: FlashcardItem[]; deck?: any; message?: string }>(
         `/documents/${documentId}/concept-flashcards`,
         { conceptName: focus.trim() || 'General', sessionId, count }
       );
@@ -830,15 +831,14 @@ export default function SessionPage({ params }: SessionPageProps) {
         setFlashcards(response.flashcards);
         setCurrentFlashcardIdx(0);
         setIsFlipped(false);
-        const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
-        const historyMessages = (sessionRes.messages || []).map(parseMessageTags);
-        setMessages(historyMessages);
+        // Append the new flashcard message locally instead of re-fetching the whole session
+        const flashcardMessage = response.message;
+        if (flashcardMessage) {
+          setMessages(prev => [...prev, parseMessageTags({ role: 'assistant', content: flashcardMessage })]);
+        }
         
         if (response.deck && response.deck._id) {
           setSelectedFlashcardDeckId(response.deck._id);
-        } else {
-          const newDeckIdx = historyMessages.length - 1;
-          setSelectedFlashcardDeckId(`deck-${newDeckIdx}`);
         }
 
         // Reset session mode back to 'understand' so subsequent chat messages
@@ -870,7 +870,7 @@ export default function SessionPage({ params }: SessionPageProps) {
         const match = m.match(/Available in (.*)\./i) || m.match(/in (.*)\./i);
         setFlashcardLimitError(match ? match[1] : '24h');
       } else {
-        alert(m || 'An unexpected error occurred while creating custom flashcards.');
+        toast.error('An error occurred while creating custom flashcards. Please try again.');
       }
     } finally {
       setIsGeneratingFlashcards(false);

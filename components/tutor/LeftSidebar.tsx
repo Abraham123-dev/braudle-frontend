@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Plus, FileText } from 'lucide-react';
+import { toast } from '@/lib/toast';
 
 interface LeftSidebarProps {
   docTitle: string;
@@ -22,7 +23,7 @@ export default function LeftSidebar({ docTitle, topics, onConceptClick, classNam
           </label>
           
           <button
-            onClick={() => alert('To upload new materials to this Workspace, please add study notes in your Library.')}
+            onClick={() => toast.info('To upload new materials to this Workspace, please add study notes in your Library.')}
             className="w-full flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl border border-dashed border-gray-200 hover:border-brand-green/45 hover:bg-brand-green/5 text-xs font-bold text-gray-500 hover:text-brand-green transition-all cursor-pointer mb-2.5"
           >
             <Plus className="w-3.5 h-3.5" /> Add sources

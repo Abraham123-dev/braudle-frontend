@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api, fetchWithRefresh } from '@/lib/api';
 import { User } from '@/lib/auth';
+import { toast } from '@/lib/toast';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -199,10 +200,9 @@ export function useSession(sessionId: string) {
     setLoading(true);
     setError('');
     try {
-      // 1. Fetch current session log & messages
-      const sessionRes = await api.get<any>(`/sessions/${sessionId}`);
+      // 1. Fetch unified session initialization payload (combines session details, welcome message, and quizzes)
+      const sessionRes = await api.get<any>(`/sessions/${sessionId}/init`);
       const historyMessages = (sessionRes.messages || []).map(parseMessageTags);
-      setMessages(historyMessages);
 
       if (sessionRes.session) {
         setActiveMode(sessionRes.session.mode || 'understand');
@@ -257,14 +257,13 @@ export function useSession(sessionId: string) {
         }
       }
 
-      // 2. Fetch welcome context
-      const welcomeRes = await api.get<any>(`/sessions/${sessionId}/welcome`);
-      if (welcomeRes.welcome) {
-        setDocTitle(welcomeRes.welcome.documentTitle || 'Study Source');
-        setTopics(welcomeRes.welcome.topics || []);
-        setDocSummary(welcomeRes.welcome.summary || '');
+      // 2. Load welcome details from initialization response
+      if (sessionRes.welcome) {
+        setDocTitle(sessionRes.welcome.documentTitle || 'Study Source');
+        setTopics(sessionRes.welcome.topics || []);
+        setDocSummary(sessionRes.welcome.summary || '');
         
-        const welcomeMsg = welcomeRes.welcome.message;
+        const welcomeMsg = sessionRes.welcome.message;
         if (welcomeMsg && historyMessages.length === 0) {
           const welcomeMsgObj = parseMessageTags({
             role: 'assistant' as const,
@@ -278,8 +277,11 @@ export function useSession(sessionId: string) {
       } else {
         setMessages(historyMessages);
       }
-      // Fetch session quizzes
-      await fetchSessionQuizzes();
+
+      // 3. Populate quizzes from initialization response
+      if (sessionRes.quizzes) {
+        setSessionQuizzes(sessionRes.quizzes);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to load session study space.');
@@ -481,8 +483,12 @@ export function useSession(sessionId: string) {
       console.error(err);
       
       let clientMessage = err.message || 'Tutoring connection timed out. Please check your internet connection.';
-      if (err.status >= 500 || !err.status) {
+      if (!err.status || err.message.toLowerCase().includes('connect') || err.message.toLowerCase().includes('internet') || err.message.toLowerCase().includes('network')) {
+        clientMessage = 'Connection failed. Please check your internet connection and try again.';
+      } else if (err.status >= 500) {
         clientMessage = 'An unexpected error occurred. We are having trouble communicating with the server.';
+      } else if (err.status === 401 || err.status === 403) {
+        clientMessage = 'Your session has expired. Please log in again.';
       }
       
       setActiveSessionError({
@@ -595,6 +601,13 @@ export function useSession(sessionId: string) {
     } catch (err: any) {
       console.error(err);
       let clientMessage = err.message || 'Tutoring connection timed out. Please check your internet connection.';
+      if (!err.status || err.message.toLowerCase().includes('connect') || err.message.toLowerCase().includes('internet') || err.message.toLowerCase().includes('network')) {
+        clientMessage = 'Connection failed. Please check your internet connection and try again.';
+      } else if (err.status >= 500) {
+        clientMessage = 'An unexpected error occurred. We are having trouble communicating with the server.';
+      } else if (err.status === 401 || err.status === 403) {
+        clientMessage = 'Your session has expired. Please log in again.';
+      }
       setActiveSessionError({
         message: clientMessage,
         errorId: err.errorId || null
@@ -632,7 +645,7 @@ export function useSession(sessionId: string) {
         triggerTutorStream(`I want to switch our study focus to ${mode} mode. Let's adapt.`);
       }
     } catch (err: any) {
-      alert(`Failed to update mode: ${err.message}`);
+      toast.error('Failed to update study mode. Please try again.');
     }
   };
 
@@ -695,7 +708,7 @@ export function useSession(sessionId: string) {
     }));
 
     if (answersList.length < quiz.questions.length) {
-      alert('Please respond to all practice questions before submitting.');
+      toast.warning('Please answer all questions before submitting.');
       return;
     }
 
@@ -717,7 +730,7 @@ export function useSession(sessionId: string) {
       ]);
       await fetchSessionQuizzes();
     } catch (err: any) {
-      alert(`Grading failed: ${err.message}`);
+      toast.error('Quiz grading failed. Please try again.');
     } finally {
       setSubmittingQuiz(false);
     }
@@ -729,7 +742,7 @@ export function useSession(sessionId: string) {
       await api.patch(`/sessions/${sessionId}/complete`, {});
       router.replace('/home');
     } catch (err: any) {
-      alert(`Failed to finish session correctly: ${err.message}`);
+      toast.error('Failed to finish session. Please try again.');
       setLoading(false);
     }
   };
@@ -808,7 +821,7 @@ export function useSession(sessionId: string) {
       
       return response;
     } catch (err: any) {
-      alert(`Grading failed: ${err.message}`);
+      toast.error('Question grading failed. Please try again.');
       return null;
     }
   };
