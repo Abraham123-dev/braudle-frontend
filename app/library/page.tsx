@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useDocuments } from '@/lib/hooks/useDocuments';
 import Header from '@/components/dashboard/Header';
 import DocumentCard, { Document } from '@/components/dashboard/DocumentCard';
 import UploadModal from '@/components/dashboard/UploadModal';
@@ -15,73 +16,15 @@ export default function LibraryPage() {
   const router = useRouter();
   const user = useStore((state) => state.user);
 
-  /* ── Core data states ── */
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loadingDocs, setLoadingDocs] = useState(true);
+  /* ── Document list (stale-while-revalidate via shared cache) ── */
+  const { documents, loading: loadingDocs, refresh: refreshDocuments } = useDocuments();
+  const invalidateDocuments = useStore((s) => s.invalidateDocuments);
 
   /* ── UI state ── */
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [startingSession, setStartingSession] = useState(false);
-
-  /* ─── Data fetchers ─── */
-
-  const fetchDocuments = async (showLoading = false) => {
-    if (showLoading) setLoadingDocs(true);
-    try {
-      const res = await api.get<any>('/documents');
-      const docList = Array.isArray(res) ? res : (res.documents || []);
-      setDocuments(docList);
-    } catch (err) {
-      console.error('Error fetching documents:', err);
-    } finally {
-      if (showLoading) setLoadingDocs(false);
-    }
-  };
-
-  /* ─── Effects ─── */
-
-  useEffect(() => {
-    fetchDocuments(true);
-  }, []);
-
-  // Poll for document status if any are pending/processing.
-  // Stable ref-based interval — registered once, not re-stacked on state changes.
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    const startPolling = () => {
-      if (pollingRef.current) return;
-      pollingRef.current = setInterval(() => {
-        setDocuments(prev => {
-          const hasProcessing = prev.some(
-            (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
-          );
-          if (hasProcessing) {
-            fetchDocuments(false);
-          } else {
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-          }
-          return prev;
-        });
-      }, 8000);
-    };
-
-    const hasProcessing = documents.some(
-      (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
-    );
-    if (hasProcessing) startPolling();
-
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, []);
 
   const handleStartSession = async (docId: string, mode: 'teach' | 'quiz') => {
     try {
@@ -101,7 +44,8 @@ export default function LibraryPage() {
   };
 
   const handleUploadSuccess = (sessionId: string) => {
-    fetchDocuments(false);
+    invalidateDocuments();
+    refreshDocuments(false);
     router.push(`/session/${sessionId}`);
   };
 
@@ -242,7 +186,7 @@ export default function LibraryPage() {
                       key={doc.id || doc._id}
                       doc={doc}
                       onStartSession={handleStartSession}
-                      onDeleteSuccess={() => fetchDocuments(false)}
+                      onDeleteSuccess={() => { invalidateDocuments(); refreshDocuments(false); }}
                     />
                   ))}
                 </div>

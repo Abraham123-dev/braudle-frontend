@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useDocuments } from '@/lib/hooks/useDocuments';
 import DocumentCard, { Document } from '@/components/dashboard/DocumentCard';
 import UploadModal from '@/components/dashboard/UploadModal';
 import Header from '@/components/dashboard/Header';
@@ -78,19 +79,13 @@ function HomeLearningContent() {
   const [mounted, setMounted] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { if (mounted) setShowChat(isChatOpen); }, [isChatOpen, mounted]);
 
-  useEffect(() => {
-    if (mounted) {
-      setShowChat(isChatOpen);
-    }
-  }, [isChatOpen, mounted]);
+  /* ── Document list (stale-while-revalidate via shared cache) ── */
+  const { documents, loading: loadingDocs, refresh: refreshDocuments } = useDocuments();
+  const invalidateDocuments = useStore((s) => s.invalidateDocuments);
 
-  /* ── Core data states ── */
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loadingDocs, setLoadingDocs] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendationsData | null>(null);
 
@@ -106,21 +101,6 @@ function HomeLearningContent() {
 
   /* ── Stable daily nudge (changes once per day) ── */
   const dailyNudge = DAILY_NUDGES[new Date().getDate() % DAILY_NUDGES.length];
-
-  /* ─── Data fetchers ─── */
-
-  const fetchDocuments = async (showLoading = false) => {
-    if (showLoading) setLoadingDocs(true);
-    try {
-      const res = await api.get<any>('/documents');
-      const docList = Array.isArray(res) ? res : (res.documents || []);
-      setDocuments(docList);
-    } catch (err) {
-      console.error('Error fetching documents:', err);
-    } finally {
-      if (showLoading) setLoadingDocs(false);
-    }
-  };
 
   const fetchProfile = async () => {
     try {
@@ -144,50 +124,9 @@ function HomeLearningContent() {
   /* ─── Effects ─── */
 
   useEffect(() => {
-    fetchDocuments(true);
     fetchProfile();
     fetchRecommendations();
   }, []);
-
-  // Poll for document status if any are pending/processing.
-  // Uses a stable ref-based interval registered once — avoids stacking intervals
-  // caused by re-running the effect every time `documents` state changes.
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    const startPolling = () => {
-      if (pollingRef.current) return; // already running
-      pollingRef.current = setInterval(() => {
-        // Read latest documents directly from state via a ref to avoid stale closure
-        setDocuments(prev => {
-          const hasProcessing = prev.some(
-            (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
-          );
-          if (hasProcessing) {
-            fetchDocuments(false);
-          } else {
-            // All done — clear interval
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-          }
-          return prev;
-        });
-      }, 8000); // 8s is responsive enough and halves server load vs 4s
-    };
-
-    const hasProcessing = documents.some(
-      (doc) => doc.processingStatus === 'processing' || doc.processingStatus === 'pending'
-    );
-    if (hasProcessing) startPolling();
-
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, []); // ← registered once on mount only
 
   // Update dynamic time-of-day greeting
   useEffect(() => {
@@ -237,7 +176,9 @@ function HomeLearningContent() {
   };
 
   const handleUploadSuccess = (sessionId: string) => {
-    fetchDocuments(false);
+    // Bust the cache so the next home/library visit fetches fresh
+    invalidateDocuments();
+    refreshDocuments(false);
     router.push(`/session/${sessionId}`);
   };
 
@@ -593,7 +534,7 @@ function HomeLearningContent() {
                           key={doc.id || doc._id}
                           doc={doc}
                           onStartSession={handleStartSession}
-                          onDeleteSuccess={() => fetchDocuments(false)}
+                          onDeleteSuccess={() => { invalidateDocuments(); refreshDocuments(false); }}
                         />
                       ))}
                     </div>

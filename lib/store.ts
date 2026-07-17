@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { User } from './auth';
 
+// Re-exported so pages importing from store also get the Document type
+export type { Document } from '@/components/dashboard/DocumentCard';
+import type { Document } from '@/components/dashboard/DocumentCard';
+
+// How long (ms) cached documents are considered fresh before a background revalidation fires.
+export const DOCUMENTS_CACHE_TTL_MS = 60_000; // 60 seconds
+
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -55,6 +63,12 @@ interface BraudleState {
   setIsOffline: (isOffline: boolean) => void;
   setConnectionError: (connectionError: boolean) => void;
 
+  // Document list cache (stale-while-revalidate)
+  documents: Document[];
+  documentsLastFetched: number | null; // unix ms timestamp
+  setDocuments: (docs: Document[]) => void;
+  invalidateDocuments: () => void; // call after upload or delete
+
   // Active Session state
   activeSession: StudySession | null;
   setActiveSession: (session: StudySession | null) => void;
@@ -90,6 +104,12 @@ export const useStore = create<BraudleState>((set) => ({
   connectionError: false,
   setIsOffline: (isOffline) => set({ isOffline }),
   setConnectionError: (connectionError) => set({ connectionError }),
+
+  // Document list cache
+  documents: [],
+  documentsLastFetched: null,
+  setDocuments: (docs) => set({ documents: docs, documentsLastFetched: Date.now() }),
+  invalidateDocuments: () => set({ documentsLastFetched: null }),
 
   // Active Session state
   activeSession: null,
