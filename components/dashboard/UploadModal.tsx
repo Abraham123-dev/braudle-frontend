@@ -13,21 +13,31 @@ interface UploadModalProps {
 }
 
 const INGESTION_STAGE_LABELS: Record<string, string> = {
-  file_received: 'Collecting your study materials...',
-  extracting_content: 'Reading document pages...',
-  identifying_concepts: 'Analyzing key topics and formulas...',
-  building_learning_map: 'Structuring your learning map...',
-  preparing_tutor: 'Setting up your personal AI companion...',
-  ready: 'Your study workspace is ready!',
-  failed: "Ingestion paused. Let's try again.",
+  file_received:        'Got your document! Starting the analysis...',
+  extracting_content:   'Reading through your document...',
+  identifying_concepts: 'Picking out the key ideas and concepts...',
+  building_learning_map:'Building your personal study map...',
+  preparing_tutor:      'Almost ready! Your AI tutor is warming up...',
+  ready:                'Done! Opening your workspace...',
+  failed:               "Something went wrong. Let's try that again.",
 };
 
 const INGESTION_PROGRESS_MAP: Record<string, number> = {
-  file_received: 55,
-  extracting_content: 70,
-  identifying_concepts: 82,
-  building_learning_map: 92,
-  preparing_tutor: 97,
+  file_received: 56,
+  extracting_content: 65,
+  identifying_concepts: 78,
+  building_learning_map: 88,
+  preparing_tutor: 95,
+};
+
+// Within each stage, these targets define how far the bar ticks forward
+// during heartbeat pulses so it never appears frozen during long AI waits.
+const INGESTION_STAGE_CEILINGS: Record<string, number> = {
+  file_received: 64,
+  extracting_content: 77,
+  identifying_concepts: 87,
+  building_learning_map: 94,
+  preparing_tutor: 98,
 };
 
 export default function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
@@ -141,72 +151,113 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
   const pollIngestionStatus = (docId: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      let settled = false;
+      let currentStage = '';
+
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearInterval(restPollTimer);
+        eventSource.close();
+        fn();
+      };
+
+      // ── SSE stream: real-time push from Redis Pub/Sub ───────────────────────
       const eventSource = new EventSource(`${apiBaseUrl}/documents/${docId}/progress`, {
         withCredentials: true,
       });
 
       eventSource.onmessage = (event) => {
         if (event.data === '[DONE]') {
-          eventSource.close();
-          setUnifiedProgress(100);
-          setUnifiedStageLabel('AI tutor prepared successfully!');
-          resolve();
+          settle(() => { setUnifiedProgress(100); setUnifiedStageLabel("You're all set! Opening your workspace..."); resolve(); });
           return;
         }
 
         try {
           const parsed = JSON.parse(event.data);
-          if (parsed.error) {
-            eventSource.close();
-            reject(new Error(parsed.error));
-            return;
-          }
+          if (parsed.error) { settle(() => reject(new Error(parsed.error))); return; }
 
           const status = parsed.status;
           const stage = parsed.stage;
 
           if (status === 'ready') {
-            eventSource.close();
-            setUnifiedProgress(100);
-            setUnifiedStageLabel('AI tutor prepared successfully!');
-            resolve();
+            settle(() => { setUnifiedProgress(100); setUnifiedStageLabel("You're all set! Opening your workspace..."); resolve(); });
           } else if (status === 'failed') {
-            eventSource.close();
-            reject(new Error('Document analysis failed. Please verify the content and try again.'));
-          } else {
-            if (stage) {
-              setUnifiedStageLabel(INGESTION_STAGE_LABELS[stage] || 'Analyzing document structure...');
-              setUnifiedProgress(prev => Math.max(prev, INGESTION_PROGRESS_MAP[stage] || 50));
+            settle(() => reject(new Error('Document analysis failed. Please verify the content and try again.')));
+          } else if (stage) {
+            // Stage update: jump to stage floor
+            if (stage !== currentStage) {
+              currentStage = stage;
+              setUnifiedStageLabel(INGESTION_STAGE_LABELS[stage] || 'Working on your document...');
+              setUnifiedProgress(prev => Math.max(prev, INGESTION_PROGRESS_MAP[stage] ?? 55));
+            } else if (parsed.heartbeat) {
+              // Heartbeat within same stage: tick the bar forward by 1% toward the ceiling
+              // so the user sees movement during long AI waits instead of a frozen bar.
+              const ceiling = INGESTION_STAGE_CEILINGS[stage] ?? 94;
+              setUnifiedProgress(prev => prev < ceiling ? prev + 1 : prev);
             }
           }
-        } catch (e) {
-          // Ignore parsing issues for heartbeats
+        } catch {
+          // Ignore malformed heartbeats
         }
       };
 
       eventSource.onerror = () => {
+        // SSE dropped — REST poll will catch it up
         eventSource.close();
-        
-        // Single REST fallback check to see if document is already ready
-        api.get<any>(`/documents/${docId}/status`)
-          .then((res) => {
-            if (res.processingStatus === 'ready') {
-              setUnifiedProgress(100);
-              setUnifiedStageLabel('AI tutor prepared successfully!');
-              resolve();
-            } else if (res.processingStatus === 'failed') {
-              reject(new Error('Document analysis failed. Please verify the content and try again.'));
-            } else {
-              // Resubscribe after a short delay
-              setTimeout(() => {
-                pollIngestionStatus(docId).then(resolve).catch(reject);
-              }, 500);
-            }
-          })
-          .catch(() => {
-            reject(new Error('Real-time connection lost with the analysis server.'));
-          });
       };
+
+      // ── REST safety net: poll every 4s in case SSE events are missed ────────
+      // This fixes the "stuck at 55%" race condition where the worker publishes
+      // progress events before the frontend's SSE subscription is established.
+      // If the worker raced ahead, the REST poll immediately catches the real stage.
+      const restPollTimer = setInterval(async () => {
+        if (settled) return;
+        try {
+          const res = await api.get<any>(`/documents/${docId}/status`);
+          const dbStage = res.processingStage;
+          const dbStatus = res.processingStatus;
+
+          if (dbStatus === 'ready') {
+            settle(() => { setUnifiedProgress(100); setUnifiedStageLabel("You're all set! Opening your workspace..."); resolve(); });
+          } else if (dbStatus === 'failed') {
+            settle(() => reject(new Error('Document analysis failed. Please verify the content and try again.')));
+          } else if (dbStage && dbStage !== currentStage) {
+            // Worker has advanced to a new stage that SSE missed — sync the bar
+            currentStage = dbStage;
+            setUnifiedStageLabel(INGESTION_STAGE_LABELS[dbStage] || 'Working on your document...');
+            setUnifiedProgress(prev => Math.max(prev, INGESTION_PROGRESS_MAP[dbStage] ?? 55));
+          }
+        } catch {
+          // REST poll failure is non-fatal — SSE will still deliver if connected
+        }
+      }, 4000);
+    });
+  };
+
+  const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB — R2 minimum part size
+  const CHUNK_SIZE = 5 * 1024 * 1024;           // 5MB chunks
+  const MAX_PARALLEL_PARTS = 3;                  // upload 3 parts at a time
+
+  /**
+   * Uploads one part of a multipart upload via XHR so we get real byte progress.
+   * Returns the ETag from R2's response headers.
+   */
+  const uploadPart = (signedUrl: string, chunk: Blob, onProgress: (bytes: number) => void): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', signedUrl);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded); };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const etag = xhr.getResponseHeader('ETag') || '';
+          resolve(etag.replace(/"/g, ''));
+        } else {
+          reject(new Error(`Part upload failed with status ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error during part upload'));
+      xhr.send(chunk);
     });
   };
 
@@ -224,130 +275,194 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }: Upload
     setUploading(true);
     setError('');
     setUnifiedProgress(3);
-    setUnifiedStageLabel('Pre-indexing study materials...');
+    setUnifiedStageLabel('Getting everything ready...');
+
+    const useMultipart = file.size >= MULTIPART_THRESHOLD;
+
+    // Track multipart state for cleanup on failure
+    let mpDocumentId: string | null = null;
+    let mpUploadId: string | null = null;
+    let mpFileKey: string | null = null;
 
     let uploadTimer: any = null;
 
     try {
-      // Run hash computation and presigned URL request in parallel for max speed.
-      // The hash is needed for deduplication — if we computed it first, we'd stall
-      // the entire upload pipeline for ~200-400ms on large PDFs before even hitting
-      // the network. Instead we send the request optimistically while hashing in parallel,
-      // then the backend uses the hash for dedup on the confirm-upload step.
-      setUnifiedProgress(8);
-      setUnifiedStageLabel('Checking workspace cache...');
+      if (useMultipart) {
+        // ── MULTIPART UPLOAD PATH (files ≥ 5MB) ───────────────────────────────
+        // Real byte-accurate progress. Resumable. Uses 3 parallel chunks at a time.
+        setUnifiedProgress(5);
+        setUnifiedStageLabel('Getting your file ready...');
 
-      const [buffer, presignRes] = await Promise.all([
-        file.arrayBuffer(),
-        api.post<{ uploadUrl?: string; documentId: string; cached?: boolean }>('/documents/presigned-url', {
-          filename: file.name,
-          contentType: file.type,
-          title: title.trim(),
-          subject: subject.trim() || 'General',
-        }),
-      ]);
+        // 1. Initiate multipart session + compute hash in parallel
+        const [buffer, initiateRes] = await Promise.all([
+          file.arrayBuffer(),
+          api.post<{ documentId: string; uploadId: string; fileKey: string }>(
+            '/documents/multipart/initiate',
+            { filename: file.name, contentType: file.type, title: title.trim(), subject: subject.trim() || 'General' }
+          ),
+        ]);
 
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
+        const fileHash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
 
-      if (!presignRes.documentId) {
-        throw new Error('Failed to get upload authorization from server.');
-      }
+        mpDocumentId = initiateRes.documentId;
+        mpUploadId   = initiateRes.uploadId;
+        mpFileKey    = initiateRes.fileKey;
 
-      const { uploadUrl, documentId, cached } = presignRes;
+        // 2. Split file into 5MB chunks
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const partNumbers = Array.from({ length: totalChunks }, (_, i) => i + 1);
 
-      if (cached) {
-        // Instant load from cache! Skip R2 upload & processing stages.
-        setUnifiedProgress(85);
-        setUnifiedStageLabel('Workspace loaded instantly from cache!');
-        
-        // Start the session immediately
-        const sessionRes = await api.post<any>('/sessions/start', {
-          documentId,
-          mode: 'understand',
+        // 3. Get presigned URLs for all parts
+        setUnifiedProgress(10);
+        setUnifiedStageLabel(`Splitting your file into ${totalChunks} parts for faster upload...`);
+        const { parts: signedParts } = await api.post<{ parts: { partNumber: number; uploadUrl: string }[] }>(
+          '/documents/multipart/presign-parts',
+          { uploadId: mpUploadId, fileKey: mpFileKey, partNumbers }
+        );
+
+        // 4. Upload all parts with real progress tracking
+        setUnifiedStageLabel('Uploading your document...');
+        const completedParts: { partNumber: number; etag: string }[] = [];
+        let bytesUploaded = 0;
+
+        // Process parts in batches of MAX_PARALLEL_PARTS
+        for (let i = 0; i < signedParts.length; i += MAX_PARALLEL_PARTS) {
+          const batch = signedParts.slice(i, i + MAX_PARALLEL_PARTS);
+
+          await Promise.all(batch.map(async ({ partNumber, uploadUrl }) => {
+            const start = (partNumber - 1) * CHUNK_SIZE;
+            const chunk = file.slice(start, start + CHUNK_SIZE);
+
+            let prevBytes = 0;
+            const etag = await uploadPart(uploadUrl, chunk, (loaded) => {
+              const delta = loaded - prevBytes;
+              prevBytes = loaded;
+              bytesUploaded += delta;
+              const pct = Math.min(45, 10 + Math.round((bytesUploaded / file.size) * 35));
+              setUnifiedProgress(pct);
+            });
+
+            completedParts.push({ partNumber, etag });
+          }));
+        }
+
+        // Sort parts by partNumber (parallel uploads may finish out of order)
+        completedParts.sort((a, b) => a.partNumber - b.partNumber);
+
+        // 5. Complete the multipart upload
+        setUnifiedProgress(48);
+        setUnifiedStageLabel('Upload complete! Hang tight...');
+        await api.post('/documents/multipart/complete', {
+          documentId: mpDocumentId,
+          uploadId: mpUploadId,
+          fileKey: mpFileKey,
+          parts: completedParts,
         });
 
-        if (sessionRes.sessionId) {
-          setUnifiedProgress(100);
-          setUnifiedStageLabel('Workspace ready! Loading dashboard...');
-
-          setTimeout(() => {
-            onUploadSuccess(sessionRes.sessionId);
-            onClose();
-            resetForm();
-          }, 800);
-          return;
-        } else {
-          throw new Error('No session ID returned from study initialization.');
-        }
-      }
-
-      // Smoothly animate progress from 8% to 45% during active upload
-      setUnifiedStageLabel('Uploading document source...');
-      uploadTimer = setInterval(() => {
-        setUnifiedProgress(prev => {
-          if (prev < 45) return prev + 2;
-          if (uploadTimer) clearInterval(uploadTimer);
-          return prev;
+        // 6. Stamp fileHash for deduplication
+        await api.post('/documents/confirm-upload', {
+          documentId: mpDocumentId,
+          fileHash,
         });
-      }, 150);
 
-      if (!uploadUrl) {
-        throw new Error('No upload URL returned from server.');
-      }
+      } else {
+        // ── SINGLE PUT PATH (files < 5MB) ──────────────────────────────────────
+        // Fast path: parallel hash + presigned URL, then one direct PUT to R2.
+        setUnifiedProgress(8);
+        setUnifiedStageLabel('Getting your file ready...');
 
-      // 2. Perform direct PUT upload to Cloudflare R2
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type
+        const [buffer, presignRes] = await Promise.all([
+          file.arrayBuffer(),
+          api.post<{ uploadUrl?: string; documentId: string; cached?: boolean }>(
+            '/documents/presigned-url',
+            { filename: file.name, contentType: file.type, title: title.trim(), subject: subject.trim() || 'General' }
+          ),
+        ]);
+
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
+        const fileHash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+
+        if (!presignRes.documentId) throw new Error('Failed to get upload authorization from server.');
+
+        const { uploadUrl, documentId, cached } = presignRes;
+        mpDocumentId = documentId;
+
+        if (cached) {
+          // Instant cache hit — skip upload entirely
+          setUnifiedProgress(85);
+          setUnifiedStageLabel('Found your document! Loading it instantly...');
+          const sessionRes = await api.post<any>('/sessions/start', { documentId, mode: 'understand' });
+          if (sessionRes.sessionId) {
+            setUnifiedProgress(100);
+            setUnifiedStageLabel("You're all set! Opening your workspace...");
+            setTimeout(() => { onUploadSuccess(sessionRes.sessionId); onClose(); resetForm(); }, 800);
+            return;
+          } else {
+            throw new Error('No session ID returned from study initialization.');
+          }
         }
-      });
 
-      clearInterval(uploadTimer);
+        // Animate progress during single PUT
+        setUnifiedStageLabel('Uploading your document...');
+        uploadTimer = setInterval(() => {
+          setUnifiedProgress(prev => {
+            if (prev < 45) return prev + 2;
+            if (uploadTimer) clearInterval(uploadTimer);
+            return prev;
+          });
+        }, 150);
 
-      if (!uploadResponse.ok) {
-        throw new Error('Direct-to-cloud file streaming failed.');
+        if (!uploadUrl) throw new Error('No upload URL returned from server.');
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        });
+
+        clearInterval(uploadTimer);
+        uploadTimer = null;
+
+        if (!uploadResponse.ok) throw new Error('Direct-to-cloud file streaming failed.');
+
+        await api.post('/documents/confirm-upload', { documentId, fileHash });
       }
 
-      // 3. Confirm completed upload to start backend parser ingestion (include hash for dedup)
-      await api.post('/documents/confirm-upload', {
-        documentId,
-        fileHash,
-      });
+      // ── POST-UPLOAD: common to both paths ──────────────────────────────────
+      const documentId = mpDocumentId!;
 
-      setUnifiedProgress(48);
-      setUnifiedStageLabel('Initializing study session...');
+      setUnifiedProgress(50);
+      setUnifiedStageLabel('Creating your study space...');
       setUploading(false);
       setAnalyzing(true);
 
-      // 3. Create the session immediately
-      const sessionRes = await api.post<any>('/sessions/start', {
-        documentId,
-        mode: 'understand', // Default starting mode
-      });
-
+      const sessionRes = await api.post<any>('/sessions/start', { documentId, mode: 'understand' });
       if (sessionRes.sessionId) {
         setUnifiedProgress(52);
-        setUnifiedStageLabel('Connecting to AI backend...');
-        
+        setUnifiedStageLabel('Waking up your AI tutor...');
         await pollIngestionStatus(documentId);
-        
         setUnifiedProgress(100);
-        setUnifiedStageLabel('Workspace ready! Loading dashboard...');
-
-        setTimeout(() => {
-          onUploadSuccess(sessionRes.sessionId);
-          onClose();
-          resetForm();
-        }, 800);
+        setUnifiedStageLabel("You're all set! Opening your workspace...");
+        setTimeout(() => { onUploadSuccess(sessionRes.sessionId); onClose(); resetForm(); }, 800);
       } else {
         throw new Error('No session ID returned from study initialization.');
       }
+
     } catch (err: any) {
       if (uploadTimer) clearInterval(uploadTimer);
+
+      // If multipart was initiated, abort it to clean up R2 and roll back counters
+      if (mpUploadId && mpFileKey && mpDocumentId) {
+        api.post('/documents/multipart/abort', {
+          documentId: mpDocumentId,
+          uploadId: mpUploadId,
+          fileKey: mpFileKey,
+        }).catch(() => {}); // fire-and-forget
+      }
+
       console.error(err);
       setError(err.message || 'An error occurred during upload or analysis. Please try again.');
       setUploading(false);
