@@ -22,6 +22,7 @@ import LeftSidebar from '@/components/tutor/LeftSidebar';
 import Logo from '@/components/Logo';
 import SlideDrawer from '@/components/tutor/SlideDrawer';
 import PDFAgentChat from '@/components/tutor/PDFAgentChat';
+import SpacedReviewBanner from '@/components/tutor/SpacedReviewBanner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -776,6 +777,16 @@ export default function SessionPage({ params }: SessionPageProps) {
     handleSendMessage(undefined, reviewMessage);
   };
 
+  // Start Spaced Repetition Review for due concepts
+  const handleStartSpacedReview = () => {
+    setRightPanelTab('studio');
+    setShowRightPane(false);
+    setCenterTab('chat');
+    setActiveMobileTab('chat');
+    const reviewMessage = `Let's do our scheduled spaced repetition review for my due concepts today! Please quiz me on them one at a time.`;
+    handleSendMessage(undefined, reviewMessage);
+  };
+
   const handleCreateCustomFlashcards = async (count: number, focus: string) => {
     if (isStreaming) return;
 
@@ -1157,6 +1168,14 @@ export default function SessionPage({ params }: SessionPageProps) {
                 <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-white">
                   <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6">
                     <div className="max-w-2xl mx-auto w-full space-y-6">
+
+                  {/* Spaced Repetition Due Alert Banner */}
+                  {dueCount > 0 && (
+                    <SpacedReviewBanner
+                      dueCount={dueCount}
+                      onStartReview={handleStartSpacedReview}
+                    />
+                  )}
 
                   {/* Document cover card */}
                   {!hasChatted && (
