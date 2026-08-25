@@ -83,12 +83,14 @@ export function useAuth(requireAuth = true) {
             .catch(() => {})
             .finally(() => {
               if (active) {
+                setIsLoading(false);
                 setInitialized(true);
               }
             });
         }
       }
     } else {
+      setIsLoading(false);
       setInitialized(true);
       handleRedirect(stateUser);
     }
